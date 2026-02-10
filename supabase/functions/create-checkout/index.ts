@@ -16,6 +16,16 @@ const PICKUP_LOCATION_LABELS: Record<string, string> = {
   "pickup-oslo": "Oslo Klatresenter",
 };
 
+function buildStripeApiVersion(paymentMethod: "card" | "vipps") {
+  // Vipps is currently gated behind an API preview header in Stripe.
+  // Stripe's Node/Deno SDK supports setting this by appending `; vipps_preview=v1`
+  // to the Stripe-Version header via `apiVersion`.
+  if (paymentMethod === "vipps") {
+    return `${STRIPE_API_VERSION}; vipps_preview=v1` as unknown as Stripe.LatestApiVersion;
+  }
+  return STRIPE_API_VERSION;
+}
+
 // Edge functions typically don't ship the generated Database type; keep this untyped to avoid
 // "never" inference issues during Lovable/Supabase typechecking.
 type SupabaseAdmin = SupabaseClient;
@@ -337,8 +347,6 @@ serve(async (req) => {
   const supabaseAdmin: SupabaseAdmin = createClient(supabaseUrl, supabaseServiceRoleKey, {
     auth: { persistSession: false },
   });
-  const stripe = new Stripe(stripeSecretKey, { apiVersion: STRIPE_API_VERSION });
-
   try {
     const payload = await req.json();
     const validation = validateRequest(payload);
@@ -353,6 +361,8 @@ serve(async (req) => {
         503
       );
     }
+
+    const stripe = new Stripe(stripeSecretKey, { apiVersion: buildStripeApiVersion(input.paymentMethod) });
 
     checkoutRef = crypto.randomUUID();
 
@@ -437,13 +447,14 @@ serve(async (req) => {
     }
 
     const paymentMethodTypes: Stripe.Checkout.SessionCreateParams.PaymentMethodType[] =
-      input.paymentMethod === "vipps" ? ["vipps"] : ["card"];
+      input.paymentMethod === "vipps" ? ["card", "vipps"] : ["card"];
 
     const session = await stripe.checkout.sessions.create({
       client_reference_id: checkoutRef,
       customer_email: input.customerEmail,
       line_items: lineItems,
       mode: "payment",
+      phone_number_collection: input.paymentMethod === "vipps" ? { enabled: true } : undefined,
       success_url: `${input.successUrl}${input.successUrl.includes("?") ? "&" : "?"}session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: input.cancelUrl,
       payment_method_types: paymentMethodTypes,
