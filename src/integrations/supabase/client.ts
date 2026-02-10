@@ -57,7 +57,7 @@ export function requireSupabase(): SupabaseClient<Database> {
   if (supabase) return supabase;
 
   const hint =
-    "Supabase er ikke konfigurert. Sett VITE_SUPABASE_URL og VITE_SUPABASE_PUBLISHABLE_KEY i Lovable Project Settings.";
+    "Supabase er ikke konfigurert. Oppdater baked config i src/integrations/supabase/publicEnv.ts eller sett VITE_SUPABASE_URL + (VITE_SUPABASE_PUBLISHABLE_KEY/VITE_SUPABASE_ANON_KEY) der hosten stotter det.";
 
   const reason = supabasePublicConfigReason ? ` (${supabasePublicConfigReason})` : "";
   throw new Error(`${hint}${reason}`);

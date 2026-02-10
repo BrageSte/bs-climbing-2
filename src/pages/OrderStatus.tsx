@@ -133,7 +133,7 @@ export default function OrderStatusPage() {
     const sb = supabase
     if (!sb) {
       setError(
-        'Ordrestatus er utilgjengelig fordi Supabase ikke er konfigurert. Sett VITE_SUPABASE_URL og VITE_SUPABASE_PUBLISHABLE_KEY i Lovable Project Settings.'
+        'Ordrestatus er utilgjengelig fordi Supabase ikke er konfigurert. Oppdater baked config i src/integrations/supabase/publicEnv.ts eller sett VITE_SUPABASE_URL + (VITE_SUPABASE_PUBLISHABLE_KEY/VITE_SUPABASE_ANON_KEY) der hosten stotter det.'
       )
       setIsLoading(false)
       return
