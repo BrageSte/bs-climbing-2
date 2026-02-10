@@ -10,7 +10,7 @@ function hostnameFromUrl(url: string | null): string | null {
 }
 
 export default function SupabaseConfigNotice() {
-  const shouldShow = supabase === null || supabasePublicConfig.source !== "env";
+  const shouldShow = supabase === null || supabasePublicConfig.source === "fallback";
   if (!shouldShow) return null;
 
   const host = hostnameFromUrl(supabasePublicConfig.url);
@@ -26,17 +26,16 @@ export default function SupabaseConfigNotice() {
       <div className="mx-auto flex max-w-6xl flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div className="leading-snug">
           <span className="font-semibold">Supabase-oppsett:</span>{" "}
-          Sett <code className="rounded bg-black/5 px-1 py-0.5 font-mono text-[0.85em]">VITE_SUPABASE_URL</code>{" "}
-          og{" "}
-          <code className="rounded bg-black/5 px-1 py-0.5 font-mono text-[0.85em]">
-            VITE_SUPABASE_PUBLISHABLE_KEY
-          </code>{" "}
-          i Lovable Project Settings.
-          {supabasePublicConfig.source === "fallback" && (
-            <span className="block text-xs text-muted-foreground">
-              Kjører med fallback i preview/dev for å unngå blank screen.
-            </span>
-          )}
+          Kjører med innebygget konfigurasjon (fallback) for å fungere i Lovable.
+          <span className="block text-xs text-muted-foreground">
+            Hvis hosten din støtter Vite env vars kan du overstyre med{" "}
+            <code className="rounded bg-black/5 px-1 py-0.5 font-mono text-[0.85em]">VITE_SUPABASE_URL</code>{" "}
+            og{" "}
+            <code className="rounded bg-black/5 px-1 py-0.5 font-mono text-[0.85em]">
+              VITE_SUPABASE_PUBLISHABLE_KEY
+            </code>
+            .
+          </span>
           {supabasePublicConfigReason && (
             <span className="block text-xs text-muted-foreground">Detaljer: {supabasePublicConfigReason}.</span>
           )}
