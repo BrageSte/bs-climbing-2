@@ -142,7 +142,7 @@ function mapOrderRowToOrder(orderRow: Record<string, unknown>): Order | null {
         config:
           blockVariant && widths && heights && typeof depth === "number" && typeof totalWidth === "number"
             ? {
-                blockVariant,
+                blockVariant: blockVariant as 'shortedge' | 'longedge',
                 widths: widths as {
                   lillefinger: number;
                   ringfinger: number;
