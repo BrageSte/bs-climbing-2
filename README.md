@@ -64,6 +64,15 @@ This project is built with:
 
 Simply open [Lovable](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and click on Share -> Publish.
 
+## Lovable Preview Env (Supabase)
+
+Lokalt bruker vi `.env` (ikke committed). I Lovable preview/publish ma du sette disse i Project Settings:
+
+- `VITE_SUPABASE_URL`
+- `VITE_SUPABASE_PUBLISHABLE_KEY`
+
+Se `.env.example` for eksempelverdier og format.
+
 ## Supabase/Stripe cutover
 
 Denne appen bruker direkte Supabase-integrasjon (frontend + edge functions). For migrering mellom Supabase-prosjekter:

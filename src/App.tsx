@@ -29,6 +29,7 @@ const AdminProducts = lazy(() => import("./pages/admin/AdminSettings"));
 import ProtectedRoute from "./components/admin/ProtectedRoute";
 import ScrollToTop from "./components/ScrollToTop";
 import AppErrorBoundary from "./components/AppErrorBoundary";
+import SupabaseConfigNotice from "@/components/SupabaseConfigNotice";
 
 // Loading fallback component
 const PageLoader = () => (
@@ -92,6 +93,7 @@ const App = () => (
       <CartProvider>
         <RuntimeErrorLogger />
         <Toaster />
+        <SupabaseConfigNotice />
         <BrowserRouter>
           <ScrollToTop />
           <Suspense fallback={<PageLoader />}>

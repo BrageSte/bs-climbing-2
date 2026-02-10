@@ -254,9 +254,20 @@ export default function CheckoutSuccess() {
           }
         }
 
+        const sb = supabase;
+        if (!sb) {
+          if (isActive) {
+            setError(
+              "Betalingen ble fullfort, men vi kan ikke verifisere ordren fordi Supabase ikke er konfigurert. Sett VITE_SUPABASE_URL og VITE_SUPABASE_PUBLISHABLE_KEY i Lovable Project Settings."
+            );
+            setLoading(false);
+          }
+          return;
+        }
+
         const start = Date.now();
         while (isActive && Date.now() - start < POLL_TIMEOUT_MS) {
-          const { data, error: resultError } = await supabase.functions.invoke<CheckoutResultResponse>(
+          const { data, error: resultError } = await sb.functions.invoke<CheckoutResultResponse>(
             "get-checkout-result",
             { body: { sessionId } }
           );
@@ -301,7 +312,7 @@ export default function CheckoutSuccess() {
           await sleep(POLL_INTERVAL_MS);
         }
 
-        const { data: verifyData } = await supabase.functions.invoke<VerifySessionResponse>("verify-session", {
+        const { data: verifyData } = await sb.functions.invoke<VerifySessionResponse>("verify-session", {
           body: { sessionId },
         });
 

@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { requireSupabase, supabase } from "@/integrations/supabase/client";
 import {
   MaintenanceModeSetting,
   ProductSetting,
@@ -199,6 +199,11 @@ export function useSettings() {
   return useQuery({
     queryKey: ["site-settings"],
     queryFn: async () => {
+      if (!supabase) {
+        // Allows app (incl. configurator) to render in Lovable preview even when env isn't set yet.
+        return parseSettings([]);
+      }
+
       const { data, error } = await supabase.from("site_settings").select("*");
 
       if (error) throw error;
@@ -213,7 +218,8 @@ export function useUpdateSetting() {
 
   return useMutation({
     mutationFn: async ({ key, value }: { key: string; value: unknown }) => {
-      const { error } = await supabase
+      const sb = requireSupabase();
+      const { error } = await sb
         .from("site_settings")
         .upsert({ key, value: value as never, updated_at: new Date().toISOString() });
 

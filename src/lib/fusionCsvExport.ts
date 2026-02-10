@@ -1,4 +1,4 @@
-import { supabase } from '@/integrations/supabase/client'
+import { requireSupabase } from '@/integrations/supabase/client'
 import { ConfigSnapshotItem } from '@/types/admin'
 
 /**
@@ -97,7 +97,8 @@ async function resolveProductionAssignment(
   orderId: string,
   fallbackProductionNumber?: number | null
 ): Promise<ProductionAssignment> {
-  const { data, error } = await supabase
+  const sb = requireSupabase()
+  const { data, error } = await sb
     .rpc('assign_production_number', { order_id: orderId })
 
   const productionNumber = normalizeProductionNumber(data?.[0]?.production_number)

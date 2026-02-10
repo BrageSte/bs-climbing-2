@@ -130,7 +130,16 @@ export default function OrderStatusPage() {
     setError('')
     setStatusData(null)
 
-    const { data, error: invokeError } = await supabase.functions.invoke('get-order-status', {
+    const sb = supabase
+    if (!sb) {
+      setError(
+        'Ordrestatus er utilgjengelig fordi Supabase ikke er konfigurert. Sett VITE_SUPABASE_URL og VITE_SUPABASE_PUBLISHABLE_KEY i Lovable Project Settings.'
+      )
+      setIsLoading(false)
+      return
+    }
+
+    const { data, error: invokeError } = await sb.functions.invoke('get-order-status', {
       body: { orderId }
     })
 
