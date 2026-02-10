@@ -60,10 +60,14 @@ serve(async (req) => {
       .maybeSingle();
 
     if (checkoutError) {
+      console.error("[get-checkout-result] Failed loading checkout_sessions", {
+        code: checkoutError.code,
+        message: checkoutError.message,
+      });
       return jsonResponse(
         {
           success: false,
-          error: { code: "DB_ERROR", message: checkoutError.message },
+          error: { code: "DB_ERROR", message: "Database error." },
         },
         500
       );
@@ -108,10 +112,15 @@ serve(async (req) => {
       .maybeSingle();
 
     if (orderError) {
+      console.error("[get-checkout-result] Failed loading orders", {
+        code: orderError.code,
+        message: orderError.message,
+        orderId: checkoutSession.order_id,
+      });
       return jsonResponse(
         {
           success: false,
-          error: { code: "DB_ERROR", message: orderError.message },
+          error: { code: "DB_ERROR", message: "Database error." },
         },
         500
       );
@@ -133,10 +142,11 @@ serve(async (req) => {
     });
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : "Unknown error";
+    console.error("[get-checkout-result] Unexpected error", message);
     return jsonResponse(
       {
         success: false,
-        error: { code: "INTERNAL_ERROR", message },
+        error: { code: "INTERNAL_ERROR", message: "Internal error." },
       },
       500
     );

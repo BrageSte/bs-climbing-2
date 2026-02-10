@@ -1,6 +1,6 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { Resend } from "https://esm.sh/resend@2.0.0";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -10,12 +10,51 @@ const corsHeaders = {
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+const ORDER_STATUS_SECRET = Deno.env.get("ORDER_STATUS_SECRET");
 
 const supabaseAdmin = SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY
   ? createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
       auth: { persistSession: false }
     })
   : null;
+
+function jsonResponse(payload: unknown, status = 200): Response {
+  return new Response(JSON.stringify(payload), {
+    status,
+    headers: { "Content-Type": "application/json", ...corsHeaders },
+  });
+}
+
+function extractBearerToken(authHeader: string | null): string | null {
+  if (!authHeader) return null;
+  const match = authHeader.match(/^Bearer\\s+(.+)$/i);
+  return match?.[1]?.trim() || null;
+}
+
+function toBase64Url(bytes: Uint8Array): string {
+  const base64 = btoa(String.fromCharCode(...bytes));
+  return base64.replace(/\\+/g, "-").replace(/\\//g, "_").replace(/=+$/g, "");
+}
+
+async function computeOrderStatusToken(secret: string, orderId: string): Promise<string> {
+  const encoder = new TextEncoder();
+  const key = await crypto.subtle.importKey(
+    "raw",
+    encoder.encode(secret),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"]
+  );
+  const signature = await crypto.subtle.sign("HMAC", key, encoder.encode(orderId));
+  return toBase64Url(new Uint8Array(signature));
+}
+
+function isInternalAuthorized(req: Request): boolean {
+  if (!SUPABASE_SERVICE_ROLE_KEY) return false;
+  const bearer = extractBearerToken(req.headers.get("authorization"));
+  const apikey = req.headers.get("apikey")?.trim() ?? null;
+  return bearer === SUPABASE_SERVICE_ROLE_KEY || apikey === SUPABASE_SERVICE_ROLE_KEY;
+}
 
 async function resolveProductionNumber(order: OrderConfirmationRequest): Promise<OrderConfirmationRequest> {
   if (order.productionNumber !== undefined && order.productionNumber !== null) return order;
@@ -61,6 +100,7 @@ interface ConfigSnapshot {
 interface OrderConfirmationRequest {
   orderId: string;
   productionNumber?: number;
+  orderStatusToken?: string;
   customerEmail: string;
   customerName: string;
   siteUrl?: string;
@@ -150,8 +190,9 @@ function validateHeightDifferences(configSnapshot?: ConfigSnapshot): { valid: bo
 function generateEmailHtml(order: OrderConfirmationRequest): string {
   const productionNumber = formatProductionNumber(order.productionNumber);
   const baseUrl = normalizeSiteUrl(order.siteUrl || Deno.env.get("PUBLIC_SITE_URL"));
+  const tokenParam = order.orderStatusToken ? `&token=${encodeURIComponent(order.orderStatusToken)}` : "";
   const statusUrl = baseUrl
-    ? `${baseUrl}/order-status?orderId=${encodeURIComponent(order.orderId)}`
+    ? `${baseUrl}/order-status?orderId=${encodeURIComponent(order.orderId)}${tokenParam}`
     : "";
   const safeStatusUrl = statusUrl ? escapeHtml(statusUrl) : "";
 
@@ -320,8 +361,9 @@ function generateEmailHtml(order: OrderConfirmationRequest): string {
 function generateEmailText(order: OrderConfirmationRequest): string {
   const productionNumber = formatProductionNumber(order.productionNumber);
   const baseUrl = normalizeSiteUrl(order.siteUrl || Deno.env.get("PUBLIC_SITE_URL"));
+  const tokenParam = order.orderStatusToken ? `&token=${encodeURIComponent(order.orderStatusToken)}` : "";
   const statusUrl = baseUrl
-    ? `${baseUrl}/order-status?orderId=${encodeURIComponent(order.orderId)}`
+    ? `${baseUrl}/order-status?orderId=${encodeURIComponent(order.orderId)}${tokenParam}`
     : "";
 
   const deliveryText = order.deliveryMethod === "shipping" && order.shippingAddress
@@ -363,6 +405,60 @@ function generateEmailText(order: OrderConfirmationRequest): string {
   return lines.join("\n");
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function parseLineItemsOreToNok(value: unknown): OrderItem[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((lineItem) => {
+      if (!isRecord(lineItem)) return null;
+      const name = typeof lineItem.name === "string" ? lineItem.name.trim() : "";
+      const quantity = typeof lineItem.quantity === "number" ? lineItem.quantity : null;
+      const priceOre = typeof lineItem.price === "number" ? lineItem.price : null;
+      if (!name || !quantity || quantity <= 0 || priceOre === null || priceOre < 0) return null;
+      return { name, quantity, price: Math.round(priceOre / 100) };
+    })
+    .filter((item): item is OrderItem => item !== null);
+}
+
+function parseShippingAddress(value: unknown): ShippingAddress | undefined {
+  if (!isRecord(value)) return undefined;
+  const line1 = typeof value.line1 === "string" ? value.line1 : "";
+  const line2 = typeof value.line2 === "string" ? value.line2 : undefined;
+  const postalCode = typeof value.postalCode === "string" ? value.postalCode : "";
+  const city = typeof value.city === "string" ? value.city : "";
+  if (!line1 || !postalCode || !city) return undefined;
+  return { line1, line2, postalCode, city };
+}
+
+function extractPromoDiscountNok(configSnapshot: unknown): number {
+  if (!isRecord(configSnapshot)) return 0;
+  const promoDiscountOre = configSnapshot.promoDiscount;
+  if (typeof promoDiscountOre !== "number" || !Number.isFinite(promoDiscountOre) || promoDiscountOre <= 0) return 0;
+  return Math.round(promoDiscountOre / 100);
+}
+
+function extractHeightsFromConfigSnapshot(configSnapshot: unknown): HeightConfig | undefined {
+  if (!isRecord(configSnapshot)) return undefined;
+  const items = Array.isArray(configSnapshot.items) ? configSnapshot.items : null;
+  if (!items?.length || !isRecord(items[0])) return undefined;
+  const heights = (items[0] as Record<string, unknown>).heights;
+  if (!isRecord(heights)) return undefined;
+  const lille = typeof heights.lillefinger === "number" ? heights.lillefinger : undefined;
+  const ring = typeof heights.ringfinger === "number" ? heights.ringfinger : undefined;
+  const lang = typeof heights.langfinger === "number" ? heights.langfinger : undefined;
+  const peke = typeof heights.pekefinger === "number" ? heights.pekefinger : undefined;
+  if (lille === undefined && ring === undefined && lang === undefined && peke === undefined) return undefined;
+  return { lillefinger: lille, ringfinger: ring, langfinger: lang, pekefinger: peke };
+}
+
+interface SendOrderConfirmationInput {
+  orderId?: string;
+  siteUrl?: string;
+}
+
 const handler = async (req: Request): Promise<Response> => {
   // Handle CORS preflight requests
   if (req.method === "OPTIONS") {
@@ -370,18 +466,69 @@ const handler = async (req: Request): Promise<Response> => {
   }
 
   try {
+    if (!isInternalAuthorized(req)) {
+      return jsonResponse({ success: false, error: "Unauthorized" }, 401);
+    }
+
+    if (!supabaseAdmin || !ORDER_STATUS_SECRET) {
+      return jsonResponse({ success: false, error: "Configuration missing" }, 500);
+    }
+
     const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
     if (!RESEND_API_KEY) {
-      throw new Error("RESEND_API_KEY is not configured");
+      return jsonResponse({ success: false, error: "Configuration missing" }, 500);
     }
 
     const resend = new Resend(RESEND_API_KEY);
-    let orderData: OrderConfirmationRequest = await req.json();
-
-    // Validate required fields
-    if (!orderData.orderId || !orderData.customerEmail || !orderData.customerName) {
-      throw new Error("Missing required fields: orderId, customerEmail, or customerName");
+    const body: SendOrderConfirmationInput = await req.json();
+    const orderId = body.orderId?.trim();
+    if (!orderId) {
+      return jsonResponse({ success: false, error: "orderId is required" }, 400);
     }
+
+    const { data: order, error } = await supabaseAdmin
+      .from("orders")
+      .select(
+        "id,production_number,customer_email,customer_name,delivery_method,pickup_location,shipping_address,line_items,subtotal_amount,shipping_amount,total_amount,config_snapshot"
+      )
+      .eq("id", orderId)
+      .maybeSingle();
+
+    if (error) {
+      console.error("[send-order-confirmation] Failed loading order", { orderId, error });
+      return jsonResponse({ success: false, error: "Internal error" }, 500);
+    }
+
+    if (!order) {
+      return jsonResponse({ success: false, error: "Order not found" }, 404);
+    }
+
+    const items = parseLineItemsOreToNok(order.line_items);
+    if (items.length === 0) {
+      console.warn("[send-order-confirmation] Order has no valid line items; skipping email", { orderId });
+      return jsonResponse({ success: true, skipped: true }, 200);
+    }
+
+    const orderStatusToken = await computeOrderStatusToken(ORDER_STATUS_SECRET, order.id);
+    const heights = extractHeightsFromConfigSnapshot(order.config_snapshot);
+
+    let orderData: OrderConfirmationRequest = {
+      orderId: order.id,
+      productionNumber: order.production_number ?? undefined,
+      orderStatusToken,
+      customerEmail: order.customer_email as string,
+      customerName: order.customer_name as string,
+      siteUrl: typeof body.siteUrl === "string" ? body.siteUrl : undefined,
+      items,
+      deliveryMethod: order.delivery_method as string,
+      pickupLocation: (order.pickup_location as string | null) ?? undefined,
+      shippingAddress: parseShippingAddress(order.shipping_address),
+      subtotal: Math.round((order.subtotal_amount as number) / 100),
+      shipping: Math.round((order.shipping_amount as number) / 100),
+      promoDiscount: extractPromoDiscountNok(order.config_snapshot),
+      total: Math.round((order.total_amount as number) / 100),
+      configSnapshot: heights ? { heights } : undefined,
+    };
 
     orderData = await resolveProductionNumber(orderData);
 
@@ -410,20 +557,10 @@ const handler = async (req: Request): Promise<Response> => {
 
     console.log("Order confirmation email sent successfully:", emailResponse);
 
-    return new Response(JSON.stringify({ success: true, data: emailResponse }), {
-      status: 200,
-      headers: { "Content-Type": "application/json", ...corsHeaders },
-    });
+    return jsonResponse({ success: true }, 200);
   } catch (error: unknown) {
     console.error("Error sending order confirmation email:", error);
-    const errorMessage = error instanceof Error ? error.message : "Unknown error";
-    return new Response(
-      JSON.stringify({ success: false, error: errorMessage }),
-      {
-        status: 500,
-        headers: { "Content-Type": "application/json", ...corsHeaders },
-      }
-    );
+    return jsonResponse({ success: false, error: "Internal error" }, 500);
   }
 };
 

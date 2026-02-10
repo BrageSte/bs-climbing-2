@@ -26,7 +26,7 @@ const DEFAULT_SETTINGS: SiteSettings = {
   ],
   stl_file_price: 199,
   shipping_cost: 79,
-  promo_codes: { TESTMEG: { type: "percent", value: 100 } },
+  promo_codes: {},
   maintenance_mode: {
     enabled: false,
     message: "Bestilling er midlertidig satt pa pause. Prov igjen om kort tid.",
@@ -99,7 +99,7 @@ function sanitizeProducts(value: unknown): ProductSetting[] {
 
 function sanitizePromoCodes(value: unknown): Record<string, PromoCodeSetting> {
   if (!isRecord(value)) {
-    return { ...DEFAULT_SETTINGS.promo_codes };
+    return {};
   }
 
   const sanitized: Record<string, PromoCodeSetting> = {};
@@ -128,9 +128,7 @@ function sanitizePromoCodes(value: unknown): Record<string, PromoCodeSetting> {
     sanitized[code] = { type: "fixed", value: fixedAmount };
   }
 
-  return Object.keys(sanitized).length > 0
-    ? sanitized
-    : { ...DEFAULT_SETTINGS.promo_codes };
+  return sanitized;
 }
 
 function sanitizeMaintenanceMode(value: unknown): MaintenanceModeSetting {

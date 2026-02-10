@@ -21,6 +21,7 @@ FUNCTIONS=(
   "get-checkout-result"
   "get-order-status"
   "send-order-confirmation"
+  "validate-promo"
 )
 
 for fn_name in "${FUNCTIONS[@]}"; do

@@ -94,7 +94,7 @@ serve(async (req) => {
     return jsonResponse(
       {
         success: false,
-        error: { code: "VERIFY_FAILED", message },
+        error: { code: "VERIFY_FAILED", message: "Could not verify session." },
       },
       500
     );

@@ -146,27 +146,6 @@ async function sendOrderConfirmationEmail(
   const alreadySentAt = checkoutSession.confirmation_email_sent_at;
   if (alreadySentAt) return;
 
-  const items = parseLineItems(order.line_items);
-  if (items.length === 0) {
-    console.warn("[stripe-webhook] Skip confirmation email: no line items", { orderId: order.id });
-    return;
-  }
-
-  const emailPayload = {
-    orderId: order.id as string,
-    customerEmail: order.customer_email as string,
-    customerName: order.customer_name as string,
-    siteUrl: Deno.env.get("PUBLIC_SITE_URL") ?? "",
-    items,
-    deliveryMethod: order.delivery_method as string,
-    pickupLocation: (order.pickup_location as string | null) ?? undefined,
-    shippingAddress: (order.shipping_address as Record<string, unknown> | null) ?? undefined,
-    subtotal: Math.round((order.subtotal_amount as number) / 100),
-    shipping: Math.round((order.shipping_amount as number) / 100),
-    promoDiscount: Math.round(((checkoutSession.promo_discount_amount as number) ?? 0) / 100),
-    total: Math.round((order.total_amount as number) / 100),
-  };
-
   const response = await fetch(`${supabaseUrl}/functions/v1/send-order-confirmation`, {
     method: "POST",
     headers: {
@@ -174,7 +153,7 @@ async function sendOrderConfirmationEmail(
       Authorization: `Bearer ${supabaseServiceRoleKey}`,
       apikey: supabaseServiceRoleKey,
     },
-    body: JSON.stringify(emailPayload),
+    body: JSON.stringify({ orderId: order.id as string }),
   });
 
   if (!response.ok) {

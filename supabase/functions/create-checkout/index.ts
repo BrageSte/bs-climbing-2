@@ -15,6 +15,10 @@ const PICKUP_LOCATION_LABELS: Record<string, string> = {
   "pickup-gneis": "Gneis Lilleaker",
   "pickup-oslo": "Oslo Klatresenter",
 };
+const BLOCK_VARIANT_LABELS: Record<"shortedge" | "longedge", string> = {
+  shortedge: "Compact",
+  longedge: "Long Edge",
+};
 
 function buildStripeApiVersion(paymentMethod: "card" | "vipps") {
   // Vipps is currently gated behind an API preview header in Stripe.
@@ -32,6 +36,7 @@ type SupabaseAdmin = SupabaseClient;
 
 type ErrorCode =
   | "INVALID_REQUEST"
+  | "INVALID_PROMO"
   | "CONFIG_MISSING"
   | "CHECKOUT_DISABLED"
   | "PAYMENT_METHOD_UNAVAILABLE"
@@ -42,10 +47,11 @@ type ErrorCode =
 interface CheckoutItemInput {
   name: string;
   productId?: string;
-  price: number;
   quantity: number;
   isDigital?: boolean;
   config?: Record<string, unknown>;
+  // Backwards compatible: frontend may send price, but we do not trust it.
+  price?: number;
 }
 
 interface CheckoutRequest {
@@ -61,8 +67,6 @@ interface CheckoutRequest {
     city: string;
   };
   promoCode?: string;
-  promoDiscount: number;
-  shippingAmount: number;
   paymentMethod: "card" | "vipps";
   successUrl: string;
   cancelUrl: string;
@@ -71,10 +75,10 @@ interface CheckoutRequest {
 interface NormalizedItem {
   name: string;
   productId: string | null;
-  priceNok: number;
   quantity: number;
   isDigital: boolean;
-  config: Record<string, unknown> | null;
+  blockVariant: "shortedge" | "longedge";
+  config: Record<string, unknown>;
 }
 
 interface NormalizedRequest {
@@ -92,12 +96,13 @@ interface NormalizedRequest {
       }
     | null;
   promoCode: string | null;
-  promoDiscountNok: number;
-  shippingAmountNok: number;
   paymentMethod: "card" | "vipps";
   successUrl: string;
   cancelUrl: string;
 }
+
+type PromoCodeRule = { type: "percent" | "fixed"; value: number };
+type ProductPriceByVariant = { shortedge: number; longedge: number };
 
 function jsonResponse(payload: unknown, status = 200): Response {
   return new Response(JSON.stringify(payload), {
@@ -150,21 +155,150 @@ function asOptionalTrimmedString(value: unknown, maxLength = 200): string | null
 }
 
 function isEmail(value: string): boolean {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+  return /^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(value);
 }
 
 function toOre(valueNok: number): number {
   return Math.round(valueNok * 100);
 }
 
-function extractConfigSnapshot(item: NormalizedItem) {
-  const config = item.config ?? {};
-  const widths = isRecord(config.widths) ? config.widths : null;
-  const heights = isRecord(config.heights) ? config.heights : null;
-  const blockVariant =
-    typeof config.blockVariant === "string" && (config.blockVariant === "shortedge" || config.blockVariant === "longedge")
-      ? config.blockVariant
-      : null;
+function parseBlockVariant(config: Record<string, unknown>): "shortedge" | "longedge" | null {
+  const candidate = config.blockVariant;
+  return candidate === "shortedge" || candidate === "longedge" ? candidate : null;
+}
+
+function sanitizePromoCodes(value: unknown): Record<string, PromoCodeRule> {
+  if (!isRecord(value)) return {};
+  const sanitized: Record<string, PromoCodeRule> = {};
+
+  for (const [rawCode, rawRule] of Object.entries(value)) {
+    const code = rawCode.trim().toUpperCase();
+    if (!code) continue;
+    if (!isRecord(rawRule)) continue;
+
+    const type = rawRule.type;
+    const amount = asFiniteNumber(rawRule.value);
+    if ((type !== "percent" && type !== "fixed") || amount === null) continue;
+
+    if (type === "percent") {
+      const percent = Math.round(amount);
+      if (percent <= 0 || percent > 100) continue;
+      sanitized[code] = { type: "percent", value: percent };
+      continue;
+    }
+
+    const fixed = Math.round(amount);
+    if (fixed <= 0) continue;
+    sanitized[code] = { type: "fixed", value: fixed };
+  }
+
+  return sanitized;
+}
+
+function sanitizeProducts(value: unknown): ProductPriceByVariant {
+  const defaults: ProductPriceByVariant = { shortedge: 399, longedge: 499 };
+  if (!Array.isArray(value)) return defaults;
+
+  const result: ProductPriceByVariant = { ...defaults };
+  for (const candidate of value) {
+    if (!isRecord(candidate)) continue;
+    const variant = candidate.variant;
+    const price = asFiniteNumber(candidate.price);
+    if ((variant === "shortedge" || variant === "longedge") && price !== null && price > 0 && price < 100_000) {
+      result[variant] = Math.round(price);
+    }
+  }
+  return result;
+}
+
+function sanitizeStlFilePrice(value: unknown): number {
+  const parsed = asFiniteNumber(value);
+  if (parsed === null || parsed <= 0 || parsed >= 100_000) return 199;
+  return Math.round(parsed);
+}
+
+function sanitizeShippingCost(value: unknown): number {
+  const parsed = asFiniteNumber(value);
+  if (parsed === null || parsed < 0 || parsed >= 100_000) return 79;
+  return Math.round(parsed);
+}
+
+function sanitizeMaintenanceMode(value: unknown): { enabled: boolean; message: string | null } {
+  if (!isRecord(value) || value.enabled !== true) return { enabled: false, message: null };
+  const message =
+    typeof value.message === "string" && value.message.trim()
+      ? value.message.trim().slice(0, 240)
+      : "Checkout is temporarily unavailable. Please try again shortly.";
+  return { enabled: true, message };
+}
+
+async function loadCheckoutSettings(supabaseAdmin: SupabaseAdmin) {
+  const keys = ["products", "stl_file_price", "shipping_cost", "promo_codes", "maintenance_mode"];
+  const { data, error } = await supabaseAdmin.from("site_settings").select("key,value").in("key", keys);
+
+  if (error) {
+    console.error("[create-checkout] Failed loading site_settings", { code: error.code, message: error.message });
+    return {
+      products: { shortedge: 399, longedge: 499 } as ProductPriceByVariant,
+      stlFilePrice: 199,
+      shippingCost: 79,
+      promoCodes: {} as Record<string, PromoCodeRule>,
+      maintenanceMode: { enabled: false, message: null as string | null },
+    };
+  }
+
+  const rows = Array.isArray(data) ? data : [];
+  const byKey = new Map<string, unknown>();
+  rows.forEach((row) => {
+    if (row && typeof row.key === "string") byKey.set(row.key, row.value);
+  });
+
+  return {
+    products: sanitizeProducts(byKey.get("products")),
+    stlFilePrice: sanitizeStlFilePrice(byKey.get("stl_file_price")),
+    shippingCost: sanitizeShippingCost(byKey.get("shipping_cost")),
+    promoCodes: sanitizePromoCodes(byKey.get("promo_codes")),
+    maintenanceMode: sanitizeMaintenanceMode(byKey.get("maintenance_mode")),
+  };
+}
+
+function computeDiscountNok(
+  promoCodeRaw: string | null,
+  promoCodes: Record<string, PromoCodeRule>,
+  preDiscountTotalNok: number
+): { ok: true; promoCode: string | null; discountNok: number } | { ok: false; error: string } {
+  if (!promoCodeRaw) return { ok: true, promoCode: null, discountNok: 0 };
+
+  const promoCode = promoCodeRaw.trim().toUpperCase();
+  if (!promoCode) return { ok: true, promoCode: null, discountNok: 0 };
+
+  const rule = promoCodes[promoCode];
+  if (!rule) {
+    return { ok: false, error: "Ugyldig promokode." };
+  }
+
+  const total = Math.max(0, Math.round(preDiscountTotalNok));
+  if (total <= 0) return { ok: true, promoCode, discountNok: 0 };
+
+  const discount =
+    rule.type === "percent"
+      ? Math.round(total * (rule.value / 100))
+      : Math.min(Math.round(rule.value), total);
+
+  return { ok: true, promoCode, discountNok: Math.max(0, Math.min(discount, total)) };
+}
+
+function computeShippingNok(deliveryMethod: string, hasPhysicalItems: boolean, shippingCost: number): number {
+  if (!hasPhysicalItems) return 0;
+  if (deliveryMethod === "pickup-gneis" || deliveryMethod === "pickup-oslo") return 0;
+  if (deliveryMethod === "shipping") return Math.max(0, Math.round(shippingCost));
+  return 0;
+}
+
+function extractConfigSnapshot(item: NormalizedItem, unitPriceOre: number) {
+  const widths = isRecord(item.config.widths) ? item.config.widths : null;
+  const heights = isRecord(item.config.heights) ? item.config.heights : null;
+  const blockVariant = parseBlockVariant(item.config);
 
   return {
     productId: item.productId,
@@ -172,36 +306,11 @@ function extractConfigSnapshot(item: NormalizedItem) {
     blockVariant,
     widths,
     heights,
-    depth: asFiniteNumber(config.depth),
-    totalWidth: asFiniteNumber(config.totalWidth),
+    depth: asFiniteNumber(item.config.depth),
+    totalWidth: asFiniteNumber(item.config.totalWidth),
     quantity: item.quantity,
-    unitPrice: toOre(item.priceNok),
+    unitPrice: unitPriceOre,
   };
-}
-
-async function getMaintenanceMode(supabaseAdmin: SupabaseAdmin) {
-  const { data, error } = await supabaseAdmin
-    .from("site_settings")
-    .select("value")
-    .eq("key", "maintenance_mode")
-    .maybeSingle();
-
-  if (error) {
-    console.error("[create-checkout] Failed reading maintenance_mode setting", error);
-    return { enabled: false, message: null as string | null };
-  }
-
-  const value = data?.value;
-  if (!isRecord(value) || value.enabled !== true) {
-    return { enabled: false, message: null as string | null };
-  }
-
-  const message =
-    typeof value.message === "string" && value.message.trim()
-      ? value.message.trim().slice(0, 240)
-      : "Checkout is temporarily unavailable. Please try again shortly.";
-
-  return { enabled: true, message };
 }
 
 function validateRequest(input: unknown): { ok: true; value: NormalizedRequest } | { ok: false; response: Response } {
@@ -220,23 +329,28 @@ function validateRequest(input: unknown): { ok: true; value: NormalizedRequest }
     }
 
     const name = asTrimmedString(candidate.name, 200);
-    const price = asFiniteNumber(candidate.price);
     const quantity = asPositiveInteger(candidate.quantity);
-
-    if (!name || price === null || price <= 0 || price > 100_000 || !quantity || quantity > 100) {
-      return { ok: false, response: errorResponse("INVALID_REQUEST", "Invalid item values supplied.") };
-    }
-
     const productId = asOptionalTrimmedString(candidate.productId, 120);
     const isDigital = candidate.isDigital === true;
     const config = isRecord(candidate.config) ? candidate.config : null;
 
+    if (!name || !quantity || quantity > 100) {
+      return { ok: false, response: errorResponse("INVALID_REQUEST", "Invalid item values supplied.") };
+    }
+    if (!config) {
+      return { ok: false, response: errorResponse("INVALID_REQUEST", "Item config is required.") };
+    }
+    const blockVariant = parseBlockVariant(config);
+    if (!blockVariant) {
+      return { ok: false, response: errorResponse("INVALID_REQUEST", "Invalid blockVariant supplied.") };
+    }
+
     normalizedItems.push({
       name,
       productId,
-      priceNok: price,
       quantity,
       isDigital,
+      blockVariant,
       config,
     });
   }
@@ -246,8 +360,6 @@ function validateRequest(input: unknown): { ok: true; value: NormalizedRequest }
   const customerPhone = asOptionalTrimmedString(input.customerPhone, 40);
   const deliveryMethod = asTrimmedString(input.deliveryMethod, 80);
   const promoCode = asOptionalTrimmedString(input.promoCode, 80);
-  const promoDiscountNok = asFiniteNumber(input.promoDiscount);
-  const shippingAmountNok = asFiniteNumber(input.shippingAmount);
   const paymentMethod = asTrimmedString(input.paymentMethod, 20) as CheckoutRequest["paymentMethod"] | null;
   const successUrl = asTrimmedString(input.successUrl, 500);
   const cancelUrl = asTrimmedString(input.cancelUrl, 500);
@@ -257,12 +369,6 @@ function validateRequest(input: unknown): { ok: true; value: NormalizedRequest }
   }
   if (!deliveryMethod || !VALID_DELIVERY_METHODS.has(deliveryMethod)) {
     return { ok: false, response: errorResponse("INVALID_REQUEST", "Invalid deliveryMethod.") };
-  }
-  if (promoDiscountNok === null || promoDiscountNok < 0) {
-    return { ok: false, response: errorResponse("INVALID_REQUEST", "promoDiscount must be >= 0.") };
-  }
-  if (shippingAmountNok === null || shippingAmountNok < 0) {
-    return { ok: false, response: errorResponse("INVALID_REQUEST", "shippingAmount must be >= 0.") };
   }
   if (!paymentMethod || !VALID_PAYMENT_METHODS.has(paymentMethod)) {
     return { ok: false, response: errorResponse("INVALID_REQUEST", "paymentMethod must be card or vipps.") };
@@ -299,18 +405,6 @@ function validateRequest(input: unknown): { ok: true; value: NormalizedRequest }
     shippingAddress = { line1, line2, postalCode, city };
   }
 
-  const subtotalNok = normalizedItems.reduce((sum, item) => sum + item.priceNok * item.quantity, 0);
-  const totalNok = subtotalNok + shippingAmountNok - promoDiscountNok;
-  if (subtotalNok <= 0 || totalNok <= 0) {
-    return {
-      ok: false,
-      response: errorResponse(
-        "INVALID_REQUEST",
-        "Computed total must be greater than zero. Use free-order flow for 100% discount."
-      ),
-    };
-  }
-
   return {
     ok: true,
     value: {
@@ -321,13 +415,35 @@ function validateRequest(input: unknown): { ok: true; value: NormalizedRequest }
       deliveryMethod,
       shippingAddress,
       promoCode,
-      promoDiscountNok,
-      shippingAmountNok,
       paymentMethod,
       successUrl: parsedSuccessUrl.toString(),
       cancelUrl: parsedCancelUrl.toString(),
     },
   };
+}
+
+async function sendOrderConfirmationEmail(
+  supabaseUrl: string,
+  supabaseServiceRoleKey: string,
+  orderId: string
+): Promise<boolean> {
+  const response = await fetch(`${supabaseUrl}/functions/v1/send-order-confirmation`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${supabaseServiceRoleKey}`,
+      apikey: supabaseServiceRoleKey,
+    },
+    body: JSON.stringify({ orderId }),
+  });
+
+  if (!response.ok) {
+    const responseText = await response.text();
+    console.error("[create-checkout] Failed sending confirmation email", { orderId, status: response.status, responseText });
+    return false;
+  }
+
+  return true;
 }
 
 serve(async (req) => {
@@ -339,7 +455,7 @@ serve(async (req) => {
   const supabaseUrl = Deno.env.get("SUPABASE_URL");
   const supabaseServiceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 
-  if (!stripeSecretKey || !supabaseUrl || !supabaseServiceRoleKey) {
+  if (!supabaseUrl || !supabaseServiceRoleKey) {
     return errorResponse("CONFIG_MISSING", "Server configuration is incomplete.", 500);
   }
 
@@ -347,35 +463,192 @@ serve(async (req) => {
   const supabaseAdmin: SupabaseAdmin = createClient(supabaseUrl, supabaseServiceRoleKey, {
     auth: { persistSession: false },
   });
+
   try {
     const payload = await req.json();
     const validation = validateRequest(payload);
     if (!validation.ok) return validation.response;
 
     const input = validation.value;
-    const maintenanceMode = await getMaintenanceMode(supabaseAdmin);
-    if (maintenanceMode.enabled) {
+    const settings = await loadCheckoutSettings(supabaseAdmin);
+    if (settings.maintenanceMode.enabled) {
       return errorResponse(
         "CHECKOUT_DISABLED",
-        maintenanceMode.message ?? "Checkout is temporarily unavailable. Please try again shortly.",
+        settings.maintenanceMode.message ?? "Checkout is temporarily unavailable. Please try again shortly.",
         503
       );
     }
 
-    const stripe = new Stripe(stripeSecretKey, { apiVersion: buildStripeApiVersion(input.paymentMethod) });
+    const hasPhysicalItems = input.items.some((item) => !item.isDigital);
+    const shippingNok = computeShippingNok(input.deliveryMethod, hasPhysicalItems, settings.shippingCost);
+
+    const computedItems = input.items.map((item) => {
+      const unitPriceNok = item.isDigital ? settings.stlFilePrice : settings.products[item.blockVariant];
+      const displayName =
+        item.isDigital
+          ? `Digital 3D-print-fil – Stepper ${BLOCK_VARIANT_LABELS[item.blockVariant]}`
+          : `Ferdig printet – Stepper ${BLOCK_VARIANT_LABELS[item.blockVariant]}`;
+
+      return {
+        item,
+        displayName,
+        unitPriceNok,
+      };
+    });
+
+    const subtotalNok = computedItems.reduce((sum, { unitPriceNok, item }) => sum + unitPriceNok * item.quantity, 0);
+    const preDiscountTotalNok = subtotalNok + shippingNok;
+
+    const discountResult = computeDiscountNok(input.promoCode, settings.promoCodes, preDiscountTotalNok);
+    if (!discountResult.ok) {
+      return errorResponse("INVALID_PROMO", discountResult.error, 400);
+    }
+
+    const promoCode = discountResult.promoCode;
+    const promoDiscountNok = discountResult.discountNok;
+    const totalNok = Math.max(0, preDiscountTotalNok - promoDiscountNok);
 
     checkoutRef = crypto.randomUUID();
 
-    const subtotalAmountOre = input.items.reduce((sum, item) => sum + toOre(item.priceNok) * item.quantity, 0);
-    const shippingAmountOre = toOre(input.shippingAmountNok);
-    const promoDiscountOre = toOre(input.promoDiscountNok);
-    const totalAmountOre = subtotalAmountOre + shippingAmountOre - promoDiscountOre;
+    const subtotalAmountOre = toOre(subtotalNok);
+    const shippingAmountOre = toOre(shippingNok);
+    const promoDiscountOre = toOre(promoDiscountNok);
+    const totalAmountOre = toOre(totalNok);
 
-    const lineItems: Stripe.Checkout.SessionCreateParams.LineItem[] = input.items.map((item) => ({
+    const orderLineItems = computedItems.map(({ displayName, unitPriceNok, item }) => ({
+      name: displayName,
+      quantity: item.quantity,
+      price: toOre(unitPriceNok),
+      productId: item.productId,
+    }));
+
+    const configSnapshot = {
+      version: 1,
+      items: computedItems.map(({ item, unitPriceNok }) => extractConfigSnapshot(item, toOre(unitPriceNok))),
+      promoCode,
+      promoDiscount: promoDiscountOre,
+    };
+
+    const pickupLocation =
+      input.deliveryMethod in PICKUP_LOCATION_LABELS ? PICKUP_LOCATION_LABELS[input.deliveryMethod] : null;
+
+    // If total is 0 after discount, create order server-side (no Stripe) and send confirmation email.
+    if (totalNok === 0) {
+      const freeSessionId = `free_order_${checkoutRef}`;
+      const orderId = crypto.randomUUID();
+
+      const { error: insertCheckoutError } = await supabaseAdmin.from("checkout_sessions").insert({
+        id: checkoutRef,
+        stripe_checkout_session_id: freeSessionId,
+        status: "paid",
+        customer_name: input.customerName,
+        customer_email: input.customerEmail,
+        customer_phone: input.customerPhone,
+        delivery_method: input.deliveryMethod,
+        pickup_location: pickupLocation,
+        shipping_address: input.shippingAddress,
+        promo_code: promoCode,
+        promo_discount_amount: promoDiscountOre,
+        subtotal_amount: subtotalAmountOre,
+        shipping_amount: shippingAmountOre,
+        total_amount: totalAmountOre,
+        currency: "NOK",
+        line_items: orderLineItems,
+        config_snapshot: configSnapshot,
+        order_id: orderId,
+        error_message: null,
+      });
+
+      if (insertCheckoutError) {
+        console.error("[create-checkout] Failed storing free checkout snapshot", insertCheckoutError);
+        return errorResponse("SESSION_PERSIST_FAILED", "Could not persist checkout session.", 500);
+      }
+
+      const { error: insertOrderError } = await supabaseAdmin.from("orders").insert({
+        id: orderId,
+        customer_name: input.customerName,
+        customer_email: input.customerEmail,
+        customer_phone: input.customerPhone,
+        delivery_method: input.deliveryMethod,
+        pickup_location: pickupLocation,
+        shipping_address: input.shippingAddress,
+        line_items: orderLineItems,
+        config_snapshot: configSnapshot,
+        subtotal_amount: subtotalAmountOre,
+        shipping_amount: shippingAmountOre,
+        total_amount: totalAmountOre,
+        currency: "NOK",
+        status: "new",
+        stripe_checkout_session_id: freeSessionId,
+      });
+
+      if (insertOrderError) {
+        console.error("[create-checkout] Failed creating free order", { orderId, insertOrderError });
+        await supabaseAdmin
+          .from("checkout_sessions")
+          .update({ status: "failed", error_message: "Failed creating order." })
+          .eq("id", checkoutRef);
+        return errorResponse("INTERNAL_ERROR", "Could not create order.", 500);
+      }
+
+      const emailOk = await sendOrderConfirmationEmail(supabaseUrl, supabaseServiceRoleKey, orderId);
+      if (emailOk) {
+        await supabaseAdmin
+          .from("checkout_sessions")
+          .update({ confirmation_email_sent_at: new Date().toISOString() })
+          .eq("id", checkoutRef);
+      }
+
+      return jsonResponse({
+        success: true,
+        freeOrder: true,
+        orderId,
+        totals: {
+          subtotal: subtotalNok,
+          shipping: shippingNok,
+          promoDiscount: promoDiscountNok,
+          total: totalNok,
+        },
+      });
+    }
+
+    // Paid order: requires Stripe secret.
+    if (!stripeSecretKey) {
+      return errorResponse("CONFIG_MISSING", "Server configuration is incomplete.", 500);
+    }
+
+    const { error: insertError } = await supabaseAdmin.from("checkout_sessions").insert({
+      id: checkoutRef,
+      status: "pending",
+      customer_name: input.customerName,
+      customer_email: input.customerEmail,
+      customer_phone: input.customerPhone,
+      delivery_method: input.deliveryMethod,
+      pickup_location: pickupLocation,
+      shipping_address: input.shippingAddress,
+      promo_code: promoCode,
+      promo_discount_amount: promoDiscountOre,
+      subtotal_amount: subtotalAmountOre,
+      shipping_amount: shippingAmountOre,
+      total_amount: totalAmountOre,
+      currency: "NOK",
+      line_items: orderLineItems,
+      config_snapshot: configSnapshot,
+      error_message: null,
+    });
+
+    if (insertError) {
+      console.error("[create-checkout] Failed storing checkout snapshot", insertError);
+      return errorResponse("SESSION_PERSIST_FAILED", "Could not persist checkout session.", 500);
+    }
+
+    const stripe = new Stripe(stripeSecretKey, { apiVersion: buildStripeApiVersion(input.paymentMethod) });
+
+    const lineItems: Stripe.Checkout.SessionCreateParams.LineItem[] = computedItems.map(({ displayName, unitPriceNok, item }) => ({
       price_data: {
         currency: "nok",
-        product_data: { name: item.name },
-        unit_amount: toOre(item.priceNok),
+        product_data: { name: displayName },
+        unit_amount: toOre(unitPriceNok),
       },
       quantity: item.quantity,
     }));
@@ -397,53 +670,9 @@ serve(async (req) => {
         amount_off: promoDiscountOre,
         currency: "nok",
         duration: "once",
-        name: input.promoCode ?? "Rabatt",
+        name: promoCode ?? "Rabatt",
       });
       discountList.push({ coupon: coupon.id });
-    }
-
-    const orderLineItems = input.items.map((item) => ({
-      name: item.name,
-      quantity: item.quantity,
-      price: toOre(item.priceNok),
-      productId: item.productId,
-    }));
-
-    const configSnapshot = {
-      version: 1,
-      items: input.items.map(extractConfigSnapshot),
-      promoCode: input.promoCode,
-      promoDiscount: promoDiscountOre,
-    };
-
-    const pickupLocation =
-      input.deliveryMethod in PICKUP_LOCATION_LABELS
-        ? PICKUP_LOCATION_LABELS[input.deliveryMethod]
-        : null;
-
-    const { error: insertError } = await supabaseAdmin.from("checkout_sessions").insert({
-      id: checkoutRef,
-      status: "pending",
-      customer_name: input.customerName,
-      customer_email: input.customerEmail,
-      customer_phone: input.customerPhone,
-      delivery_method: input.deliveryMethod,
-      pickup_location: pickupLocation,
-      shipping_address: input.shippingAddress,
-      promo_code: input.promoCode,
-      promo_discount_amount: promoDiscountOre,
-      subtotal_amount: subtotalAmountOre,
-      shipping_amount: shippingAmountOre,
-      total_amount: totalAmountOre,
-      currency: "NOK",
-      line_items: orderLineItems,
-      config_snapshot: configSnapshot,
-      error_message: null,
-    });
-
-    if (insertError) {
-      console.error("[create-checkout] Failed storing checkout snapshot", insertError);
-      return errorResponse("SESSION_PERSIST_FAILED", "Could not persist checkout session.", 500);
     }
 
     const paymentMethodTypes: Stripe.Checkout.SessionCreateParams.PaymentMethodType[] =
@@ -516,6 +745,7 @@ serve(async (req) => {
     }
 
     console.error("[create-checkout] Unexpected error", error);
-    return errorResponse("INTERNAL_ERROR", message, 500);
+    return errorResponse("INTERNAL_ERROR", "Internal error.", 500);
   }
 });
+
