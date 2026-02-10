@@ -1,19 +1,1 @@
 project_id = "bfxypsjdwdrgedxyiaba"
-
-[functions.send-order-confirmation]
-verify_jwt = false
-
-[functions.get-order-status]
-verify_jwt = false
-
-[functions.create-checkout]
-verify_jwt = false
-
-[functions.verify-session]
-verify_jwt = false
-
-[functions.get-checkout-result]
-verify_jwt = false
-
-[functions.stripe-webhook]
-verify_jwt = false

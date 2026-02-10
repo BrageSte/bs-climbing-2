@@ -14,41 +14,6 @@ export type Database = {
   }
   public: {
     Tables: {
-      files: {
-        Row: {
-          created_at: string
-          file_type: string
-          id: string
-          order_id: string
-          original_filename: string | null
-          storage_path: string
-        }
-        Insert: {
-          created_at?: string
-          file_type: string
-          id?: string
-          order_id: string
-          original_filename?: string | null
-          storage_path: string
-        }
-        Update: {
-          created_at?: string
-          file_type?: string
-          id?: string
-          order_id?: string
-          original_filename?: string | null
-          storage_path?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "files_order_id_fkey"
-            columns: ["order_id"]
-            isOneToOne: false
-            referencedRelation: "orders"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       checkout_sessions: {
         Row: {
           config_snapshot: Json
@@ -128,6 +93,41 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "checkout_sessions_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      files: {
+        Row: {
+          created_at: string
+          file_type: string
+          id: string
+          order_id: string
+          original_filename: string | null
+          storage_path: string
+        }
+        Insert: {
+          created_at?: string
+          file_type: string
+          id?: string
+          order_id: string
+          original_filename?: string | null
+          storage_path: string
+        }
+        Update: {
+          created_at?: string
+          file_type?: string
+          id?: string
+          order_id?: string
+          original_filename?: string | null
+          storage_path?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "files_order_id_fkey"
             columns: ["order_id"]
             isOneToOne: false
             referencedRelation: "orders"
@@ -319,6 +319,8 @@ export type Database = {
         | "shipped"
         | "done"
         | "error"
+        | "arkivert"
+        | "reklamasjon"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -456,6 +458,8 @@ export const Constants = {
         "shipped",
         "done",
         "error",
+        "arkivert",
+        "reklamasjon",
       ],
     },
   },
