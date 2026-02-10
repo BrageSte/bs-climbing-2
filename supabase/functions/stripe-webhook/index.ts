@@ -1,6 +1,10 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import Stripe from "https://esm.sh/stripe@18.5.0";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
+import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
+
+// Edge functions typically don't ship the generated Database type; keep this untyped to avoid
+// "never" inference issues during Lovable/Supabase typechecking.
+type SupabaseAdmin = SupabaseClient<any>;
 
 const STRIPE_API_VERSION: Stripe.LatestApiVersion = "2025-08-27.basil";
 
@@ -38,7 +42,7 @@ function parseLineItems(lineItems: unknown): Array<{ name: string; quantity: num
 }
 
 async function logOrderEvent(
-  supabaseAdmin: ReturnType<typeof createClient>,
+  supabaseAdmin: SupabaseAdmin,
   eventType: string,
   payload: Record<string, unknown>,
   orderId: string | null
@@ -55,7 +59,7 @@ async function logOrderEvent(
 }
 
 async function findCheckoutSession(
-  supabaseAdmin: ReturnType<typeof createClient>,
+  supabaseAdmin: SupabaseAdmin,
   session: Stripe.Checkout.Session
 ) {
   const checkoutRef = session.client_reference_id ?? session.metadata?.checkout_ref ?? null;
@@ -74,7 +78,7 @@ async function findCheckoutSession(
 }
 
 async function persistOrderForPaidSession(
-  supabaseAdmin: ReturnType<typeof createClient>,
+  supabaseAdmin: SupabaseAdmin,
   session: Stripe.Checkout.Session,
   checkoutSession: Record<string, unknown>
 ) {
@@ -133,7 +137,7 @@ async function persistOrderForPaidSession(
 }
 
 async function sendOrderConfirmationEmail(
-  supabaseAdmin: ReturnType<typeof createClient>,
+  supabaseAdmin: SupabaseAdmin,
   supabaseUrl: string,
   supabaseServiceRoleKey: string,
   checkoutSession: Record<string, unknown>,
@@ -216,7 +220,7 @@ serve(async (req) => {
   }
 
   const stripe = new Stripe(stripeSecretKey, { apiVersion: STRIPE_API_VERSION });
-  const supabaseAdmin = createClient(supabaseUrl, supabaseServiceRoleKey, {
+  const supabaseAdmin = createClient<any>(supabaseUrl, supabaseServiceRoleKey, {
     auth: { persistSession: false },
   });
 

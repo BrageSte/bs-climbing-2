@@ -1,6 +1,6 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import Stripe from "https://esm.sh/stripe@18.5.0";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
+import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -15,6 +15,10 @@ const PICKUP_LOCATION_LABELS: Record<string, string> = {
   "pickup-gneis": "Gneis Lilleaker",
   "pickup-oslo": "Oslo Klatresenter",
 };
+
+// Edge functions typically don't ship the generated Database type; keep this untyped to avoid
+// "never" inference issues during Lovable/Supabase typechecking.
+type SupabaseAdmin = SupabaseClient<any>;
 
 type ErrorCode =
   | "INVALID_REQUEST"
@@ -165,7 +169,7 @@ function extractConfigSnapshot(item: NormalizedItem) {
   };
 }
 
-async function getMaintenanceMode(supabaseAdmin: ReturnType<typeof createClient>) {
+async function getMaintenanceMode(supabaseAdmin: SupabaseAdmin) {
   const { data, error } = await supabaseAdmin
     .from("site_settings")
     .select("value")
@@ -330,7 +334,7 @@ serve(async (req) => {
   }
 
   let checkoutRef: string | null = null;
-  const supabaseAdmin = createClient(supabaseUrl, supabaseServiceRoleKey, {
+  const supabaseAdmin = createClient<any>(supabaseUrl, supabaseServiceRoleKey, {
     auth: { persistSession: false },
   });
   const stripe = new Stripe(stripeSecretKey, { apiVersion: STRIPE_API_VERSION });
