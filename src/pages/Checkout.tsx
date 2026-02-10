@@ -21,6 +21,33 @@ interface CreateCheckoutResponse {
   }
 }
 
+async function readSupabaseFunctionError(invokeError: unknown): Promise<{ code?: string; message: string }> {
+  const context = (invokeError as { context?: Response } | null)?.context
+  if (context) {
+    try {
+      const bodyText = await context.text()
+      if (bodyText) {
+        try {
+          const parsed = JSON.parse(bodyText) as { error?: { code?: string; message?: string } | string }
+          if (typeof parsed?.error === 'string') {
+            return { message: parsed.error }
+          }
+          if (parsed?.error && typeof parsed.error === 'object') {
+            return { code: parsed.error.code, message: parsed.error.message ?? 'Ukjent feil' }
+          }
+        } catch {
+          return { message: bodyText }
+        }
+      }
+    } catch {
+      // Ignore and fall through to default message.
+    }
+  }
+
+  const message = invokeError instanceof Error ? invokeError.message : 'Kunne ikke opprette betalingssesjon.'
+  return { message }
+}
+
 export default function Checkout() {
   const navigate = useNavigate()
   const { data: settings } = useSettings()
@@ -277,7 +304,7 @@ export default function Checkout() {
       }
 
       // Create real Stripe Checkout session
-      const { data, error } = await sb.functions.invoke<CreateCheckoutResponse>('create-checkout', {
+      const { data, error: invokeError } = await sb.functions.invoke<CreateCheckoutResponse>('create-checkout', {
         body: {
           items: items.map(item => ({
             name: item.product.name,
@@ -301,8 +328,9 @@ export default function Checkout() {
         }
       })
 
-      if (error) {
-        throw new Error('Kunne ikke opprette betalingssesjon.')
+      if (invokeError) {
+        const { code, message } = await readSupabaseFunctionError(invokeError)
+        throw new Error(code ? `[${code}] ${message}` : message)
       }
 
       if (!data?.success || !data.url) {
@@ -670,8 +698,8 @@ export default function Checkout() {
                         <CreditCard className="w-6 h-6 text-muted-foreground" />
                       </div>
                       <div className="text-left">
-                        <div className="font-medium text-foreground">Kort</div>
-                        <div className="text-sm text-muted-foreground">Visa, Mastercard, etc.</div>
+                        <div className="font-medium text-foreground">Kort / Apple Pay</div>
+                        <div className="text-sm text-muted-foreground">Visa, Mastercard, Apple Pay</div>
                       </div>
                       {paymentMethod === 'card' && (
                         <div className="ml-auto w-5 h-5 bg-primary rounded-full flex items-center justify-center">
@@ -770,7 +798,7 @@ export default function Checkout() {
                     'Fullfør bestilling (Gratis)'
                   ) : (
                     <>
-                      {paymentMethod === 'vipps' ? 'Betal med Vipps' : 'Betal med kort'}
+                      {paymentMethod === 'vipps' ? 'Betal med Vipps' : 'Betal med kort / Apple Pay'}
                       <span className="ml-1">{discountedTotal},- kr</span>
                     </>
                   )}
