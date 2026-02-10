@@ -51,7 +51,7 @@ serve(async (req) => {
 
     const sessionId = body.sessionId.trim();
     const stripe = new Stripe(stripeSecretKey, { apiVersion: STRIPE_API_VERSION });
-    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceRoleKey, {
+    const supabaseAdmin = createClient<any>(supabaseUrl, supabaseServiceRoleKey, {
       auth: { persistSession: false },
     });
 
