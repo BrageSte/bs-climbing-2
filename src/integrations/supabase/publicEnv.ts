@@ -52,7 +52,12 @@ export function getSupabasePublicConfig(): SupabasePublicConfigWithReason {
 
   const reason = problems.join(". ");
 
-  if (import.meta.env.DEV) {
+  // Lovable preview domains often run a production build, where `import.meta.env.DEV` is false.
+  // Allow fallback on those hosts to avoid blank/blocked previews when env isn't injected.
+  const isLovablePreviewHost =
+    typeof window !== "undefined" && window.location.hostname.endsWith(".lovableproject.com");
+
+  if (import.meta.env.DEV || isLovablePreviewHost) {
     return {
       url: FALLBACK_URL,
       key: FALLBACK_KEY,
@@ -68,4 +73,3 @@ export function getSupabasePublicConfig(): SupabasePublicConfigWithReason {
     reason,
   };
 }
-
