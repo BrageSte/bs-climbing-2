@@ -18,7 +18,7 @@ const PICKUP_LOCATION_LABELS: Record<string, string> = {
 
 // Edge functions typically don't ship the generated Database type; keep this untyped to avoid
 // "never" inference issues during Lovable/Supabase typechecking.
-type SupabaseAdmin = SupabaseClient<any>;
+type SupabaseAdmin = SupabaseClient;
 
 type ErrorCode =
   | "INVALID_REQUEST"
@@ -334,7 +334,7 @@ serve(async (req) => {
   }
 
   let checkoutRef: string | null = null;
-  const supabaseAdmin = createClient<any>(supabaseUrl, supabaseServiceRoleKey, {
+  const supabaseAdmin: SupabaseAdmin = createClient(supabaseUrl, supabaseServiceRoleKey, {
     auth: { persistSession: false },
   });
   const stripe = new Stripe(stripeSecretKey, { apiVersion: STRIPE_API_VERSION });

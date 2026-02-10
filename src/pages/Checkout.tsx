@@ -8,7 +8,7 @@ import { useCart } from '@/contexts/CartContext'
 import { createOrder } from '@/lib/orderService'
 import { useToast } from '@/hooks/use-toast'
 import { PICKUP_LOCATIONS, DeliveryMethod, ShippingAddress, BlockConfig } from '@/types/shop'
-import { supabase } from '@/integrations/supabase/client'
+import { supabase } from '@/integrations/supabase/browserClient'
 import { useSettings } from '@/hooks/useSettings'
 
 interface CreateCheckoutResponse {
@@ -184,7 +184,7 @@ export default function Checkout() {
       toast({
         title: 'Konfigurasjonsfeil',
         description:
-          'Kasse er utilgjengelig fordi Supabase ikke er konfigurert. Sett VITE_SUPABASE_URL og VITE_SUPABASE_PUBLISHABLE_KEY i Lovable Project Settings.',
+          'Kasse er utilgjengelig fordi Supabase ikke er konfigurert. Oppdater baked config i src/integrations/supabase/publicEnv.ts eller sett VITE_SUPABASE_URL + (VITE_SUPABASE_PUBLISHABLE_KEY/VITE_SUPABASE_ANON_KEY) der hosten stotter det.',
         variant: 'destructive'
       })
       return

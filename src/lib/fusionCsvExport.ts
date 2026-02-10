@@ -1,4 +1,4 @@
-import { supabase } from '@/integrations/supabase/client'
+import { supabase } from '@/integrations/supabase/browserClient'
 import { ConfigSnapshotItem } from '@/types/admin'
 
 /**

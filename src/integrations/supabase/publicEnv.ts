@@ -1,4 +1,4 @@
-export type SupabasePublicConfigSource = "env" | "fallback" | "missing";
+export type SupabasePublicConfigSource = "env" | "baked" | "missing";
 
 export type SupabasePublicConfig = {
   url: string | null;
@@ -11,10 +11,16 @@ export type SupabasePublicConfigWithReason = SupabasePublicConfig & {
   reason: string | null;
 };
 
-// Public (browser-safe) defaults used only for dev/preview to avoid blank screens when
-// Lovable preview doesn't have env set up yet. Production must always be configured via env.
-const FALLBACK_URL = "https://bfxypsjdwdrgedxyiaba.supabase.co";
-const FALLBACK_KEY = "sb_publishable_wifNwaLO3kjTCSuB7Ix6aw_0hPQmx6C";
+// Public (browser-safe) baked defaults.
+//
+// This repo is deployed via Lovable, but Lovable may not always inject Vite env vars.
+// These values are safe to expose in the browser (publishable/anon).
+//
+// If you cut over to a new Supabase project, update these baked values (and redeploy),
+// or override via Vite env vars when your host supports them.
+const BAKED_URL = "https://bfxypsjdwdrgedxyiaba.supabase.co";
+const BAKED_KEY =
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJmeHlwc2pkd2RyZ2VkeHlpYWJhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzA3MjI3ODAsImV4cCI6MjA4NjI5ODc4MH0.3AMUtofdxarX4yaYmbLsiNHwhnnU8ADA9aBWUqMeGvg";
 
 function isNonEmptyString(value: unknown): value is string {
   return typeof value === "string" && value.trim().length > 0;
@@ -30,15 +36,17 @@ function validatePublicEnv(url: unknown, key: unknown): string[] {
   }
 
   if (!isNonEmptyString(key)) {
-    problems.push("VITE_SUPABASE_PUBLISHABLE_KEY mangler");
+    problems.push("VITE_SUPABASE_PUBLISHABLE_KEY (eller VITE_SUPABASE_ANON_KEY/VITE_SUPABASE_KEY) mangler");
   }
 
   return problems;
 }
 
 export function getSupabasePublicConfig(): SupabasePublicConfigWithReason {
-  const rawUrl = import.meta.env.VITE_SUPABASE_URL as unknown;
-  const rawKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as unknown;
+  const rawUrl = import.meta.env["VITE_SUPABASE_URL"] as unknown;
+  const rawKey = (import.meta.env["VITE_SUPABASE_PUBLISHABLE_KEY"] ??
+    import.meta.env["VITE_SUPABASE_ANON_KEY"] ??
+    import.meta.env["VITE_SUPABASE_KEY"]) as unknown;
 
   const problems = validatePublicEnv(rawUrl, rawKey);
   if (problems.length === 0) {
@@ -52,12 +60,22 @@ export function getSupabasePublicConfig(): SupabasePublicConfigWithReason {
 
   const reason = problems.join(". ");
 
-  // In some hosts (Lovable included), Vite env injection for `VITE_*` may not be available.
-  // These values are public, so default to the baked-in config when env is missing/invalid.
+  const bakedProblems = validatePublicEnv(BAKED_URL, BAKED_KEY);
+  if (bakedProblems.length === 0) {
+    // In some hosts (Lovable included), Vite env injection for `VITE_*` may not be available.
+    // These values are public, so default to the baked-in config when env is missing/invalid.
+    return {
+      url: BAKED_URL,
+      key: BAKED_KEY,
+      source: "baked",
+      reason,
+    };
+  }
+
   return {
-    url: FALLBACK_URL,
-    key: FALLBACK_KEY,
-    source: "fallback",
-    reason,
+    url: null,
+    key: null,
+    source: "missing",
+    reason: [reason, ...bakedProblems].filter(Boolean).join(". "),
   };
 }

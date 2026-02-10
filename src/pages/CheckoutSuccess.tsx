@@ -4,7 +4,7 @@ import { ArrowRight, CheckCircle2, Loader2, Mail, MapPin, Package } from "lucide
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import { useCart } from "@/contexts/CartContext";
-import { supabase } from "@/integrations/supabase/client";
+import { supabase } from "@/integrations/supabase/browserClient";
 import { DeliveryMethod, Order, PICKUP_LOCATIONS, ShippingAddress, isDigitalOnlyCart } from "@/types/shop";
 import { getDeliveryMethodLabel } from "@/lib/stripe-mock";
 
@@ -258,7 +258,7 @@ export default function CheckoutSuccess() {
         if (!sb) {
           if (isActive) {
             setError(
-              "Betalingen ble fullfort, men vi kan ikke verifisere ordren fordi Supabase ikke er konfigurert. Sett VITE_SUPABASE_URL og VITE_SUPABASE_PUBLISHABLE_KEY i Lovable Project Settings."
+              "Betalingen ble fullfort, men vi kan ikke verifisere ordren fordi Supabase ikke er konfigurert. Oppdater baked config i src/integrations/supabase/publicEnv.ts eller sett VITE_SUPABASE_URL + (VITE_SUPABASE_PUBLISHABLE_KEY/VITE_SUPABASE_ANON_KEY) der hosten stotter det."
             );
             setLoading(false);
           }

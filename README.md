@@ -64,12 +64,18 @@ This project is built with:
 
 Simply open [Lovable](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and click on Share -> Publish.
 
-## Lovable Preview Env (Supabase)
+## Lovable deploy (Supabase)
 
-Lokalt bruker vi `.env` (ikke committed). I Lovable preview/publish ma du sette disse i Project Settings:
+Lokalt bruker vi `.env` (ikke committed).
+
+I Lovable er Vite env-injeksjon (`VITE_*`) ikke alltid tilgjengelig. Derfor bruker vi en baked (public) Supabase-konfig i:
+
+- `src/integrations/supabase/publicEnv.ts`
+
+Hvis hosten din stotter Vite env vars kan du overstyre baked config med:
 
 - `VITE_SUPABASE_URL`
-- `VITE_SUPABASE_PUBLISHABLE_KEY`
+- `VITE_SUPABASE_PUBLISHABLE_KEY` (evt. `VITE_SUPABASE_ANON_KEY` / `VITE_SUPABASE_KEY`)
 
 Se `.env.example` for eksempelverdier og format.
 

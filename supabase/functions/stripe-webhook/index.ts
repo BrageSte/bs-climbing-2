@@ -4,7 +4,7 @@ import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supa
 
 // Edge functions typically don't ship the generated Database type; keep this untyped to avoid
 // "never" inference issues during Lovable/Supabase typechecking.
-type SupabaseAdmin = SupabaseClient<any>;
+type SupabaseAdmin = SupabaseClient;
 
 const STRIPE_API_VERSION: Stripe.LatestApiVersion = "2025-08-27.basil";
 
@@ -220,7 +220,7 @@ serve(async (req) => {
   }
 
   const stripe = new Stripe(stripeSecretKey, { apiVersion: STRIPE_API_VERSION });
-  const supabaseAdmin = createClient<any>(supabaseUrl, supabaseServiceRoleKey, {
+  const supabaseAdmin: SupabaseAdmin = createClient(supabaseUrl, supabaseServiceRoleKey, {
     auth: { persistSession: false },
   });
 
