@@ -1,4 +1,4 @@
-import { requireSupabase } from '@/integrations/supabase/client'
+import { supabase } from '@/integrations/supabase/client'
 import { CartItem, DeliveryMethod, ShippingAddress, PICKUP_LOCATIONS } from '@/types/shop'
 
 export interface CreateOrderParams {
@@ -19,8 +19,15 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
 }
 
+function getSupabaseOrThrow() {
+  if (!supabase) {
+    throw new Error('Supabase er ikke konfigurert. Checkout er utilgjengelig i denne hosten.')
+  }
+  return supabase
+}
+
 async function assertCheckoutAvailable() {
-  const sb = requireSupabase()
+  const sb = getSupabaseOrThrow()
   const { data, error } = await sb
     .from('site_settings')
     .select('value')
@@ -99,7 +106,7 @@ export async function createOrder(params: CreateOrderParams): Promise<string> {
   // Generate a unique order ID client-side since anon users can't SELECT after INSERT
   const orderId = crypto.randomUUID()
 
-  const sb = requireSupabase()
+  const sb = getSupabaseOrThrow()
   const { error } = await sb
     .from('orders')
     .insert({
