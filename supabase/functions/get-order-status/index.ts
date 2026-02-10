@@ -4,7 +4,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
+    "authorization, x-client-info, apikey, content-type, x-order-status-token, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
@@ -38,10 +38,9 @@ function jsonResponse(payload: unknown, status = 200): Response {
   });
 }
 
-function extractBearerToken(authHeader: string | null): string | null {
-  if (!authHeader) return null;
-  const match = authHeader.match(/^Bearer\s+(.+)$/i);
-  return match?.[1]?.trim() || null;
+function extractOrderStatusToken(req: Request): string | null {
+  const token = req.headers.get("x-order-status-token")?.trim();
+  return token ? token : null;
 }
 
 function toBase64Url(bytes: Uint8Array): string {
@@ -88,16 +87,16 @@ serve(async (req) => {
       );
     }
 
-    const bearer = extractBearerToken(req.headers.get("authorization"));
-    if (!bearer) {
+    const token = extractOrderStatusToken(req);
+    if (!token) {
       return jsonResponse(
-        { success: false, error: "Missing authorization", code: ERROR_CODES.missingAuth },
+        { success: false, error: "Missing order status token", code: ERROR_CODES.missingAuth },
         401
       );
     }
 
     const expected = await computeOrderStatusToken(ORDER_STATUS_SECRET, orderId);
-    if (bearer !== expected) {
+    if (token !== expected) {
       return jsonResponse(
         { success: false, error: "Unauthorized", code: ERROR_CODES.unauthorized },
         403

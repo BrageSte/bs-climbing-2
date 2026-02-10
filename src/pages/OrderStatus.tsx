@@ -92,7 +92,9 @@ export default function OrderStatusPage() {
 
     const { data, error: invokeError } = await sb.functions.invoke('get-order-status', {
       body: { orderId },
-      headers: { Authorization: `Bearer ${token.trim()}` },
+      // Do not override `Authorization` (Supabase uses it for JWT verification). Send our HMAC token
+      // in a custom header that the edge function explicitly whitelists for CORS.
+      headers: { 'x-order-status-token': token.trim() },
     })
 
     if (invokeError) {
