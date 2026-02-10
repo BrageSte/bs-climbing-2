@@ -27,13 +27,13 @@ function jsonResponse(payload: unknown, status = 200): Response {
 
 function extractBearerToken(authHeader: string | null): string | null {
   if (!authHeader) return null;
-  const match = authHeader.match(/^Bearer\\s+(.+)$/i);
+  const match = authHeader.match(/^Bearer\s+(.+)$/i);
   return match?.[1]?.trim() || null;
 }
 
 function toBase64Url(bytes: Uint8Array): string {
   const base64 = btoa(String.fromCharCode(...bytes));
-  return base64.replace(/\\+/g, "-").replace(/\\//g, "_").replace(/=+$/g, "");
+  return base64.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
 }
 
 async function computeOrderStatusToken(secret: string, orderId: string): Promise<string> {

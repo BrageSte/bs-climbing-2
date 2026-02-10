@@ -155,7 +155,8 @@ function asOptionalTrimmedString(value: unknown, maxLength = 200): string | null
 }
 
 function isEmail(value: string): boolean {
-  return /^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(value);
+  // NOTE: This is a regex literal, so we must not double-escape `\s` / `\.`.
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 }
 
 function toOre(valueNok: number): number {
@@ -748,4 +749,3 @@ serve(async (req) => {
     return errorResponse("INTERNAL_ERROR", "Internal error.", 500);
   }
 });
-
