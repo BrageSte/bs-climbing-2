@@ -16,7 +16,7 @@ export default function SupabaseConfigNotice() {
   const host = hostnameFromUrl(supabasePublicConfig.url);
   const sourceLabel =
     supabasePublicConfig.source === "fallback"
-      ? "fallback (dev only)"
+      ? "fallback (preview/dev)"
       : supabasePublicConfig.source === "missing"
       ? "missing"
       : "env";
@@ -34,7 +34,7 @@ export default function SupabaseConfigNotice() {
           i Lovable Project Settings.
           {supabasePublicConfig.source === "fallback" && (
             <span className="block text-xs text-muted-foreground">
-              Kjører med fallback i dev/preview for å unngå blank screen.
+              Kjører med fallback i preview/dev for å unngå blank screen.
             </span>
           )}
           {supabasePublicConfigReason && (
@@ -50,4 +50,3 @@ export default function SupabaseConfigNotice() {
     </div>
   );
 }
-
