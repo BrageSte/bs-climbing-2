@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { requireSupabase, supabase } from "@/integrations/supabase/client";
+import { supabase } from "@/integrations/supabase/client";
 import {
   MaintenanceModeSetting,
   ProductSetting,
@@ -218,8 +218,12 @@ export function useUpdateSetting() {
 
   return useMutation({
     mutationFn: async ({ key, value }: { key: string; value: unknown }) => {
-      const sb = requireSupabase();
-      const { error } = await sb
+      if (!supabase) {
+        throw new Error(
+          "Supabase er ikke konfigurert. Admin-innstillinger kan ikke lagres i denne hosten."
+        );
+      }
+      const { error } = await supabase
         .from("site_settings")
         .upsert({ key, value: value as never, updated_at: new Date().toISOString() });
 

@@ -1,7 +1,14 @@
 import { useQuery } from '@tanstack/react-query'
-import { requireSupabase, supabase } from '@/integrations/supabase/client'
+import { supabase } from '@/integrations/supabase/client'
 import { useEffect, useState } from 'react'
 import { User } from '@supabase/supabase-js'
+
+function getSupabaseOrThrow() {
+  if (!supabase) {
+    throw new Error('Supabase er ikke konfigurert. Admin-innlogging er utilgjengelig i denne hosten.')
+  }
+  return supabase
+}
 
 export function useAuth() {
   const [user, setUser] = useState<User | null>(null)
@@ -40,7 +47,7 @@ export function useIsAdmin() {
     queryFn: async () => {
       if (!user) return false
 
-      const sb = requireSupabase()
+      const sb = getSupabaseOrThrow()
       const { data, error } = await sb.rpc('is_admin')
 
       if (error) {
@@ -60,7 +67,7 @@ export function useIsAdmin() {
 }
 
 export async function signIn(email: string, password: string) {
-  const sb = requireSupabase()
+  const sb = getSupabaseOrThrow()
   const { data, error } = await sb.auth.signInWithPassword({
     email,
     password
@@ -71,7 +78,7 @@ export async function signIn(email: string, password: string) {
 }
 
 export async function signOut() {
-  const sb = requireSupabase()
+  const sb = getSupabaseOrThrow()
   const { error } = await sb.auth.signOut()
   if (error) throw error
 }

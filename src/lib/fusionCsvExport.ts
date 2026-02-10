@@ -1,4 +1,4 @@
-import { requireSupabase } from '@/integrations/supabase/client'
+import { supabase } from '@/integrations/supabase/client'
 import { ConfigSnapshotItem } from '@/types/admin'
 
 /**
@@ -97,7 +97,10 @@ async function resolveProductionAssignment(
   orderId: string,
   fallbackProductionNumber?: number | null
 ): Promise<ProductionAssignment> {
-  const sb = requireSupabase()
+  if (!supabase) {
+    throw new Error('Supabase er ikke konfigurert. Kan ikke tildele produksjonsnummer i denne hosten.')
+  }
+  const sb = supabase
   const { data, error } = await sb
     .rpc('assign_production_number', { order_id: orderId })
 

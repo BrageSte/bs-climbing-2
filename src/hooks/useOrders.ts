@@ -1,12 +1,19 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { requireSupabase } from '@/integrations/supabase/client'
+import { supabase } from '@/integrations/supabase/client'
 import { OrderRow, OrderStatus } from '@/types/admin'
+
+function getSupabaseOrThrow() {
+  if (!supabase) {
+    throw new Error('Supabase er ikke konfigurert. Admin-funksjoner er utilgjengelige i denne hosten.')
+  }
+  return supabase
+}
 
 export function useOrders(statusFilter?: OrderStatus) {
   return useQuery({
     queryKey: ['orders', statusFilter],
     queryFn: async () => {
-      const sb = requireSupabase()
+      const sb = getSupabaseOrThrow()
       let query = sb
         .from('orders')
         .select('*')
@@ -30,7 +37,7 @@ export function useOrder(orderId: string | undefined) {
     queryFn: async () => {
       if (!orderId) return null
 
-      const sb = requireSupabase()
+      const sb = getSupabaseOrThrow()
       const { data, error } = await sb
         .from('orders')
         .select('*')
@@ -49,7 +56,7 @@ export function useUpdateOrderStatus() {
 
   return useMutation({
     mutationFn: async ({ orderId, status }: { orderId: string; status: OrderStatus }) => {
-      const sb = requireSupabase()
+      const sb = getSupabaseOrThrow()
       const { error } = await sb
         .from('orders')
         .update({ status })
@@ -69,7 +76,7 @@ export function useUpdateOrderNotes() {
 
   return useMutation({
     mutationFn: async ({ orderId, notes }: { orderId: string; notes: string }) => {
-      const sb = requireSupabase()
+      const sb = getSupabaseOrThrow()
       const { error } = await sb
         .from('orders')
         .update({ internal_notes: notes })
@@ -88,7 +95,7 @@ export function useBulkUpdateOrderStatus() {
 
   return useMutation({
     mutationFn: async ({ orderIds, status }: { orderIds: string[]; status: OrderStatus }) => {
-      const sb = requireSupabase()
+      const sb = getSupabaseOrThrow()
       const { error } = await sb
         .from('orders')
         .update({ status })
@@ -107,7 +114,7 @@ export function useBulkDeleteOrders() {
 
   return useMutation({
     mutationFn: async (orderIds: string[]) => {
-      const sb = requireSupabase()
+      const sb = getSupabaseOrThrow()
       const { error } = await sb
         .from('orders')
         .delete()
