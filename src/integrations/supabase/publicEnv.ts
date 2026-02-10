@@ -19,7 +19,8 @@ export type SupabasePublicConfigWithReason = SupabasePublicConfig & {
 // If you cut over to a new Supabase project, update these baked values (and redeploy),
 // or override via Vite env vars when your host supports them.
 const BAKED_URL = "https://bfxypsjdwdrgedxyiaba.supabase.co";
-const BAKED_KEY = "sb_publishable_wifNwaLO3kjTCSuB7Ix6aw_0hPQmx6C";
+const BAKED_KEY =
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJmeHlwc2pkd2RyZ2VkeHlpYWJhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzA3MjI3ODAsImV4cCI6MjA4NjI5ODc4MH0.3AMUtofdxarX4yaYmbLsiNHwhnnU8ADA9aBWUqMeGvg";
 
 function isNonEmptyString(value: unknown): value is string {
   return typeof value === "string" && value.trim().length > 0;
