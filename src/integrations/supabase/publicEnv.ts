@@ -52,24 +52,12 @@ export function getSupabasePublicConfig(): SupabasePublicConfigWithReason {
 
   const reason = problems.join(". ");
 
-  // Lovable preview domains often run a production build, where `import.meta.env.DEV` is false.
-  // Allow fallback on those hosts to avoid blank/blocked previews when env isn't injected.
-  const isLovablePreviewHost =
-    typeof window !== "undefined" && window.location.hostname.endsWith(".lovableproject.com");
-
-  if (import.meta.env.DEV || isLovablePreviewHost) {
-    return {
-      url: FALLBACK_URL,
-      key: FALLBACK_KEY,
-      source: "fallback",
-      reason,
-    };
-  }
-
+  // In some hosts (Lovable included), Vite env injection for `VITE_*` may not be available.
+  // These values are public, so default to the baked-in config when env is missing/invalid.
   return {
-    url: null,
-    key: null,
-    source: "missing",
+    url: FALLBACK_URL,
+    key: FALLBACK_KEY,
+    source: "fallback",
     reason,
   };
 }
