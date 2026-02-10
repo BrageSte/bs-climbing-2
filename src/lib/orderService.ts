@@ -1,4 +1,4 @@
-import { supabase } from '@/integrations/supabase/client'
+import { supabase } from '@/integrations/supabase/browserClient'
 import { CartItem, DeliveryMethod, ShippingAddress, PICKUP_LOCATIONS } from '@/types/shop'
 
 export interface CreateOrderParams {

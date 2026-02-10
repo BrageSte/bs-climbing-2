@@ -4,7 +4,7 @@ import { ArrowRight, CheckCircle2, Loader2, Mail, MapPin, Package } from "lucide
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import { useCart } from "@/contexts/CartContext";
-import { supabase } from "@/integrations/supabase/client";
+import { supabase } from "@/integrations/supabase/browserClient";
 import { DeliveryMethod, Order, PICKUP_LOCATIONS, ShippingAddress, isDigitalOnlyCart } from "@/types/shop";
 import { getDeliveryMethodLabel } from "@/lib/stripe-mock";
 

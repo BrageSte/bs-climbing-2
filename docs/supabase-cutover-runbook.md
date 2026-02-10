@@ -98,9 +98,13 @@ NEW_DB_URL='postgresql://...' scripts/supabase/import-critical-data.sh tmp/data_
 ```bash
 OLD_DB_URL='postgresql://...' NEW_DB_URL='postgresql://...' scripts/supabase/validate-critical-data.sh
 ```
-6. Update Loveable deploy env:
-- `VITE_SUPABASE_URL`
-- `VITE_SUPABASE_PUBLISHABLE_KEY`
+6. Update Lovable deploy Supabase config:
+- If Lovable supports Vite env vars in Project Settings:
+  - `VITE_SUPABASE_URL`
+  - `VITE_SUPABASE_PUBLISHABLE_KEY` (or `VITE_SUPABASE_ANON_KEY`)
+- If Lovable does not support env vars for this project:
+  - Update baked values in `src/integrations/supabase/publicEnv.ts`
+  - Re-publish from Lovable
 
 7. Publish new build from Loveable.
 8. In Stripe, switch primary webhook endpoint to new project.

@@ -13,7 +13,7 @@ import { Button } from '@/components/ui/button'
 import OrderStatusBadge from '@/components/admin/OrderStatusBadge'
 import { DELIVERY_METHOD_LABELS, ORDER_STATUS_LABELS } from '@/types/admin'
 import type { OrderStatus, ConfigSnapshot } from '@/types/admin'
-import { supabase } from '@/integrations/supabase/client'
+import { supabase } from '@/integrations/supabase/browserClient'
 
 interface OrderStatusResponse {
   order?: {

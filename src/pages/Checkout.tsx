@@ -8,7 +8,7 @@ import { useCart } from '@/contexts/CartContext'
 import { createOrder } from '@/lib/orderService'
 import { useToast } from '@/hooks/use-toast'
 import { PICKUP_LOCATIONS, DeliveryMethod, ShippingAddress, BlockConfig } from '@/types/shop'
-import { supabase } from '@/integrations/supabase/client'
+import { supabase } from '@/integrations/supabase/browserClient'
 import { useSettings } from '@/hooks/useSettings'
 
 interface CreateCheckoutResponse {
