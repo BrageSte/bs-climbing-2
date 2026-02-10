@@ -5,7 +5,6 @@ import Header from '@/components/Header'
 import Footer from '@/components/Footer'
 import CartSummary from '@/components/cart/CartSummary'
 import { useCart } from '@/contexts/CartContext'
-import { createOrder } from '@/lib/orderService'
 import { useToast } from '@/hooks/use-toast'
 import { PICKUP_LOCATIONS, DeliveryMethod, ShippingAddress, BlockConfig } from '@/types/shop'
 import { supabase } from '@/integrations/supabase/browserClient'
@@ -15,6 +14,14 @@ interface CreateCheckoutResponse {
   success?: boolean
   url?: string
   sessionId?: string
+  freeOrder?: boolean
+  orderId?: string
+  totals?: {
+    subtotal?: number
+    shipping?: number
+    promoDiscount?: number
+    total?: number
+  }
   error?: {
     code?: string
     message?: string
@@ -118,12 +125,14 @@ export default function Checkout() {
     setPromoError('')
     if (!promoInput.trim()) return
     
-    const success = applyPromoCode(promoInput.trim())
-    if (!success) {
-      setPromoError('Ugyldig promokode')
-    } else {
-      setPromoInput('')
-    }
+    void (async () => {
+      const success = await applyPromoCode(promoInput.trim())
+      if (!success) {
+        setPromoError('Ugyldig promokode')
+      } else {
+        setPromoInput('')
+      }
+    })()
   }
 
   const validateForm = (): boolean => {
@@ -229,87 +238,12 @@ export default function Checkout() {
       : undefined
 
     try {
-      const subtotalAmount = items.reduce((sum, item) => sum + item.product.price * item.quantity, 0)
-      const shippingAmount = isDigitalOnly ? 0 : (deliveryMethod === 'shipping' ? dynamicShippingCost : 0)
-      
-      // If total is 0 (100% discount), skip payment and save order directly to database
-      if (discountedTotal === 0) {
-        const orderId = await createOrder({
-          items,
-          customerName: customerName.trim(),
-          customerEmail: email.trim(),
-          customerPhone: customerPhone.trim() || undefined,
-          deliveryMethod: deliveryMethod || 'shipping', // Default for digital products
-          shippingAddress,
-          promoCode: promoCode || undefined,
-          promoDiscount,
-          subtotal: subtotalAmount,
-          shipping: shippingAmount,
-          discountedTotal: 0
-        })
-
-        // Send order confirmation email (non-blocking)
-        const pickupLocation = deliveryMethod.startsWith('pickup-') 
-          ? PICKUP_LOCATIONS.find(loc => loc.id === deliveryMethod)?.name 
-          : undefined
-
-        sb.functions.invoke('send-order-confirmation', {
-          body: {
-            orderId,
-            siteUrl: window.location.origin,
-            customerEmail: email.trim(),
-            customerName: customerName.trim(),
-            items: items.map(item => ({
-              name: item.product.name,
-              quantity: item.quantity,
-              price: item.product.price
-            })),
-            deliveryMethod,
-            pickupLocation,
-            shippingAddress,
-            subtotal: subtotalAmount,
-            shipping: shippingAmount,
-            promoDiscount,
-            total: 0
-          }
-        }).catch(() => {
-          // Email sending is non-blocking, errors are logged server-side
-        })
-
-        // Store simplified order info for success page
-        const order = {
-          orderId,
-          items,
-          subtotal: subtotalAmount,
-          shipping: shippingAmount,
-          total: 0,
-          email: email.trim(),
-          customerName: customerName.trim(),
-          customerPhone: customerPhone.trim() || undefined,
-          shippingAddress,
-          promoCode,
-          promoDiscount,
-          deliveryMethod,
-          createdAt: new Date().toISOString(),
-          status: 'paid' as const,
-          savedToDatabase: true
-        }
-        
-        sessionStorage.setItem('bs-climbing-pending-order', JSON.stringify(order))
-        clearCart()
-        
-        // Navigate to success page
-        navigate('/checkout/success?session_id=free_order')
-        return
-      }
-
       // Create real Stripe Checkout session
       const { data, error: invokeError } = await sb.functions.invoke<CreateCheckoutResponse>('create-checkout', {
         body: {
           items: items.map(item => ({
             name: item.product.name,
             productId: item.product.id,
-            price: item.product.price,
             quantity: item.quantity,
             isDigital: item.product.isDigital,
             config: item.product.config,
@@ -320,8 +254,6 @@ export default function Checkout() {
           deliveryMethod: deliveryMethod || 'shipping',
           shippingAddress,
           promoCode: promoCode || undefined,
-          promoDiscount,
-          shippingAmount: isDigitalOnly ? 0 : (deliveryMethod === 'shipping' ? dynamicShippingCost : 0),
           paymentMethod,
           successUrl: `${window.location.origin}/checkout/success`,
           cancelUrl: `${window.location.origin}/checkout/cancel`,
@@ -331,6 +263,33 @@ export default function Checkout() {
       if (invokeError) {
         const { code, message } = await readSupabaseFunctionError(invokeError)
         throw new Error(code ? `[${code}] ${message}` : message)
+      }
+
+      if (data?.success && data.freeOrder && data.orderId) {
+        const subtotalAmount = items.reduce((sum, item) => sum + item.product.price * item.quantity, 0)
+        const serverTotals = data.totals ?? {}
+        const order = {
+          orderId: data.orderId,
+          items,
+          subtotal: typeof serverTotals.subtotal === 'number' ? serverTotals.subtotal : subtotalAmount,
+          shipping: typeof serverTotals.shipping === 'number' ? serverTotals.shipping : 0,
+          total: typeof serverTotals.total === 'number' ? serverTotals.total : 0,
+          email: email.trim(),
+          customerName: customerName.trim(),
+          customerPhone: customerPhone.trim() || undefined,
+          shippingAddress,
+          promoCode,
+          promoDiscount: typeof serverTotals.promoDiscount === 'number' ? serverTotals.promoDiscount : promoDiscount,
+          deliveryMethod,
+          createdAt: new Date().toISOString(),
+          status: 'paid' as const,
+          savedToDatabase: true
+        }
+
+        sessionStorage.setItem('bs-climbing-pending-order', JSON.stringify(order))
+        clearCart()
+        navigate('/checkout/success?session_id=free_order')
+        return
       }
 
       if (!data?.success || !data.url) {

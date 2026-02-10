@@ -3,6 +3,7 @@
 import { createContext, useContext, useState, useEffect, ReactNode, useCallback, useMemo } from 'react'
 import { CartItem, Product, DeliveryMethod, isDigitalOnlyCart } from '@/types/shop'
 import { useSettings, DEFAULT_SETTINGS } from '@/hooks/useSettings'
+import { supabase } from '@/integrations/supabase/browserClient'
 
 interface CartContextType {
   items: CartItem[]
@@ -23,7 +24,7 @@ interface CartContextType {
   promoCode: string | null
   promoDiscount: number
   discountedTotal: number
-  applyPromoCode: (code: string) => boolean
+  applyPromoCode: (code: string) => Promise<boolean>
   clearPromoCode: () => void
 }
 
@@ -33,7 +34,6 @@ const CART_STORAGE_KEY = 'bs-climbing-cart'
 
 export function CartProvider({ children }: { children: ReactNode }) {
   const { data: settings } = useSettings()
-  const promoCodes = settings?.promo_codes ?? DEFAULT_SETTINGS.promo_codes
   const shippingCost = settings?.shipping_cost ?? DEFAULT_SETTINGS.shipping_cost
 
   const [items, setItems] = useState<CartItem[]>([])
@@ -41,6 +41,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
   const [isHydrated, setIsHydrated] = useState(false)
   const [deliveryMethod, setDeliveryMethod] = useState<DeliveryMethod>(null)
   const [promoCode, setPromoCode] = useState<string | null>(null)
+  const [promoDiscount, setPromoDiscount] = useState(0)
 
   // Load cart from localStorage on mount
   useEffect(() => {
@@ -85,34 +86,75 @@ export function CartProvider({ children }: { children: ReactNode }) {
   
   const total = subtotal + shipping
 
-  // Calculate promo discount
-  const promoDiscount = useMemo(() => {
-    if (!promoCode) return 0
-    const normalizedCode = promoCode.toUpperCase()
-    const promo = promoCodes[normalizedCode]
-    if (!promo) return 0
-
-    if (promo.type === 'percent') {
-      return Math.round(total * (promo.value / 100))
-    } else {
-      return Math.min(promo.value, total)
-    }
-  }, [promoCode, total, promoCodes])
-
   const discountedTotal = Math.max(0, total - promoDiscount)
 
-  const applyPromoCode = useCallback((code: string): boolean => {
-    const normalizedCode = code.toUpperCase().trim()
-    if (promoCodes[normalizedCode]) {
-      setPromoCode(normalizedCode)
-      return true
-    }
-    return false
-  }, [promoCodes])
+  const applyPromoCode = useCallback(
+    async (code: string): Promise<boolean> => {
+      const normalizedCode = code.toUpperCase().trim()
+      if (!normalizedCode) return false
+
+      const sb = supabase
+      if (!sb) return false
+
+      try {
+        const { data, error } = await sb.functions.invoke('validate-promo', {
+          body: { promoCode: normalizedCode, totalNok: total }
+        })
+
+        if (error || !data?.success) return false
+
+        if (data.valid === true && typeof data.discountNok === 'number' && data.discountNok > 0) {
+          setPromoCode(typeof data.normalizedCode === 'string' ? data.normalizedCode : normalizedCode)
+          setPromoDiscount(Math.round(data.discountNok))
+          return true
+        }
+
+        return false
+      } catch {
+        return false
+      }
+    },
+    [total]
+  )
 
   const clearPromoCode = useCallback(() => {
     setPromoCode(null)
+    setPromoDiscount(0)
   }, [])
+
+  useEffect(() => {
+    if (!promoCode) return
+
+    let cancelled = false
+    const sb = supabase
+    if (!sb) return
+
+    void (async () => {
+      try {
+        const { data, error } = await sb.functions.invoke('validate-promo', {
+          body: { promoCode, totalNok: total }
+        })
+
+        if (cancelled) return
+        if (error || !data?.success) return
+
+        if (data.valid === true && typeof data.discountNok === 'number' && data.discountNok > 0) {
+          setPromoDiscount(Math.round(data.discountNok))
+          return
+        }
+
+        // Promo code was removed/invalidated server-side; clear it client-side too.
+        setPromoCode(null)
+        setPromoDiscount(0)
+      } catch {
+        // Keep the existing discount on transient failures.
+      }
+    })()
+
+    return () => {
+      cancelled = true
+    }
+  }, [promoCode, total])
 
   const addToCart = useCallback((product: Product, quantity = 1) => {
     setItems(prev => {
@@ -151,6 +193,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
     setItems([])
     setDeliveryMethod(null)
     setPromoCode(null)
+    setPromoDiscount(0)
   }, [])
 
   return (

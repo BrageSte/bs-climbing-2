@@ -35,6 +35,7 @@ REQUIRED_VARS=(
   "STRIPE_SECRET_KEY"
   "RESEND_API_KEY"
   "PUBLIC_SITE_URL"
+  "ORDER_STATUS_SECRET"
 )
 
 for var_name in "${REQUIRED_VARS[@]}"; do
@@ -47,7 +48,8 @@ done
 supabase secrets set --project-ref "$PROJECT_REF" \
   "STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY}" \
   "RESEND_API_KEY=${RESEND_API_KEY}" \
-  "PUBLIC_SITE_URL=${PUBLIC_SITE_URL}"
+  "PUBLIC_SITE_URL=${PUBLIC_SITE_URL}" \
+  "ORDER_STATUS_SECRET=${ORDER_STATUS_SECRET}"
 
 if [[ -n "${STRIPE_WEBHOOK_SECRET:-}" ]]; then
   supabase secrets set --project-ref "$PROJECT_REF" \
