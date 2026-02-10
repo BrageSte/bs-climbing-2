@@ -179,6 +179,17 @@ export default function Checkout() {
 
     if (!validateForm()) return
 
+    const sb = supabase
+    if (!sb) {
+      toast({
+        title: 'Konfigurasjonsfeil',
+        description:
+          'Kasse er utilgjengelig fordi Supabase ikke er konfigurert. Sett VITE_SUPABASE_URL og VITE_SUPABASE_PUBLISHABLE_KEY i Lovable Project Settings.',
+        variant: 'destructive'
+      })
+      return
+    }
+
     setIsProcessing(true)
 
     const shippingAddress: ShippingAddress | undefined = needsShippingAddress 
@@ -215,7 +226,7 @@ export default function Checkout() {
           ? PICKUP_LOCATIONS.find(loc => loc.id === deliveryMethod)?.name 
           : undefined
 
-        supabase.functions.invoke('send-order-confirmation', {
+        sb.functions.invoke('send-order-confirmation', {
           body: {
             orderId,
             siteUrl: window.location.origin,
@@ -266,7 +277,7 @@ export default function Checkout() {
       }
 
       // Create real Stripe Checkout session
-      const { data, error } = await supabase.functions.invoke<CreateCheckoutResponse>('create-checkout', {
+      const { data, error } = await sb.functions.invoke<CreateCheckoutResponse>('create-checkout', {
         body: {
           items: items.map(item => ({
             name: item.product.name,

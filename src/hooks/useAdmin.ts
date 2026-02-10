@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
-import { supabase } from '@/integrations/supabase/client'
+import { requireSupabase, supabase } from '@/integrations/supabase/client'
 import { useEffect, useState } from 'react'
 import { User } from '@supabase/supabase-js'
 
@@ -8,6 +8,12 @@ export function useAuth() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
+    if (!supabase) {
+      setUser(null)
+      setLoading(false)
+      return
+    }
+
     // Get initial session
     supabase.auth.getSession().then(({ data: { session } }) => {
       setUser(session?.user ?? null)
@@ -34,7 +40,8 @@ export function useIsAdmin() {
     queryFn: async () => {
       if (!user) return false
 
-      const { data, error } = await supabase.rpc('is_admin')
+      const sb = requireSupabase()
+      const { data, error } = await sb.rpc('is_admin')
 
       if (error) {
         return false
@@ -53,7 +60,8 @@ export function useIsAdmin() {
 }
 
 export async function signIn(email: string, password: string) {
-  const { data, error } = await supabase.auth.signInWithPassword({
+  const sb = requireSupabase()
+  const { data, error } = await sb.auth.signInWithPassword({
     email,
     password
   })
@@ -63,6 +71,7 @@ export async function signIn(email: string, password: string) {
 }
 
 export async function signOut() {
-  const { error } = await supabase.auth.signOut()
+  const sb = requireSupabase()
+  const { error } = await sb.auth.signOut()
   if (error) throw error
 }

@@ -1,12 +1,13 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { supabase } from '@/integrations/supabase/client'
+import { requireSupabase } from '@/integrations/supabase/client'
 import { OrderRow, OrderStatus } from '@/types/admin'
 
 export function useOrders(statusFilter?: OrderStatus) {
   return useQuery({
     queryKey: ['orders', statusFilter],
     queryFn: async () => {
-      let query = supabase
+      const sb = requireSupabase()
+      let query = sb
         .from('orders')
         .select('*')
         .order('created_at', { ascending: false })
@@ -29,7 +30,8 @@ export function useOrder(orderId: string | undefined) {
     queryFn: async () => {
       if (!orderId) return null
 
-      const { data, error } = await supabase
+      const sb = requireSupabase()
+      const { data, error } = await sb
         .from('orders')
         .select('*')
         .eq('id', orderId)
@@ -47,7 +49,8 @@ export function useUpdateOrderStatus() {
 
   return useMutation({
     mutationFn: async ({ orderId, status }: { orderId: string; status: OrderStatus }) => {
-      const { error } = await supabase
+      const sb = requireSupabase()
+      const { error } = await sb
         .from('orders')
         .update({ status })
         .eq('id', orderId)
@@ -66,7 +69,8 @@ export function useUpdateOrderNotes() {
 
   return useMutation({
     mutationFn: async ({ orderId, notes }: { orderId: string; notes: string }) => {
-      const { error } = await supabase
+      const sb = requireSupabase()
+      const { error } = await sb
         .from('orders')
         .update({ internal_notes: notes })
         .eq('id', orderId)
@@ -84,7 +88,8 @@ export function useBulkUpdateOrderStatus() {
 
   return useMutation({
     mutationFn: async ({ orderIds, status }: { orderIds: string[]; status: OrderStatus }) => {
-      const { error } = await supabase
+      const sb = requireSupabase()
+      const { error } = await sb
         .from('orders')
         .update({ status })
         .in('id', orderIds)
@@ -102,7 +107,8 @@ export function useBulkDeleteOrders() {
 
   return useMutation({
     mutationFn: async (orderIds: string[]) => {
-      const { error } = await supabase
+      const sb = requireSupabase()
+      const { error } = await sb
         .from('orders')
         .delete()
         .in('id', orderIds)
