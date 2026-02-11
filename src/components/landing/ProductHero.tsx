@@ -1,5 +1,4 @@
 import { Link } from "react-router-dom";
-import { motion } from "framer-motion";
 import { ArrowRight } from "lucide-react";
 import { useSettings } from "@/hooks/useSettings";
 
@@ -20,12 +19,9 @@ export default function ProductHero() {
       <div className="relative z-10 w-full max-w-5xl mx-auto px-4 sm:px-6 py-16 md:py-24">
         {/* Mobile: stacked, Desktop: side by side */}
         <div className="flex flex-col lg:grid lg:grid-cols-2 gap-10 lg:gap-16 items-center">
-          {/* Text content */}
-          <motion.div
+          {/* Text content — visible immediately for fast LCP (no opacity animation) */}
+          <div
             className="text-center lg:text-left order-2 lg:order-1"
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: 0.3 }}
           >
             <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight leading-[1.1] mb-4 text-foreground">
               Stepper
@@ -63,14 +59,11 @@ export default function ProductHero() {
             </div>
 
             <p className="text-xs text-muted-foreground mt-4">Henting i Oslo · Frakt i hele Norge</p>
-          </motion.div>
+          </div>
 
           {/* Product Visual */}
-          <motion.div
-            className="relative order-1 lg:order-2 w-full max-w-sm lg:max-w-md mx-auto"
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ duration: 0.5, delay: 0 }}
+          <div
+            className="relative order-1 lg:order-2 w-full max-w-sm lg:max-w-md mx-auto animate-fade-in"
           >
             <div className="relative aspect-square">
               {/* Product image placeholder */}
@@ -104,7 +97,7 @@ export default function ProductHero() {
                 <div className="absolute top-0 left-0 right-0 h-1/4 bg-gradient-to-b from-background/10 to-transparent" />
               </div>
             </div>
-          </motion.div>
+          </div>
         </div>
       </div>
     </section>
