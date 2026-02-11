@@ -5,6 +5,7 @@ import BlockSelector, { DEFAULT_BLOCK_OPTIONS } from "./BlockSelector";
 import DynamicBlockPreview from "./DynamicBlockPreview";
 import MeasureHelpModal from "./MeasureHelpModal";
 import HeightValidationDialog from "./HeightValidationDialog";
+import MeasureHelpPopover from "./MeasureHelpPopover";
 import { HelpCircle, ShoppingBag, Download, Info } from "lucide-react";
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "@/components/ui/tooltip";
 import { useCart } from "@/contexts/CartContext";
@@ -264,9 +265,12 @@ export default function CrimpConfigurator() {
         <div className="space-y-4 sm:space-y-6">
           {/* Finger widths */}
           <div>
-            <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2 sm:mb-3">
-              Fingerbredde (mm)
-            </h3>
+            <div className="flex items-center gap-1.5 mb-2 sm:mb-3">
+              <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                Fingerbredde (mm)
+              </h3>
+              <MeasureHelpPopover section="fingerbredde" />
+            </div>
             <p className="text-xs sm:text-sm text-muted-foreground mb-3 leading-relaxed">
               Mål ytterst på fingerpaden. +2mm for komfort.
             </p>
@@ -292,9 +296,12 @@ export default function CrimpConfigurator() {
 
           {/* Height differences */}
           <div>
-            <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2 sm:mb-3">
-              Høydeforskjell (mm)
-            </h3>
+            <div className="flex items-center gap-1.5 mb-2 sm:mb-3">
+              <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                Høydeforskjell (mm)
+              </h3>
+              <MeasureHelpPopover section="hoydeforskjell" />
+            </div>
             <p className="text-xs sm:text-sm text-muted-foreground mb-3 leading-relaxed">
               Justerer stegene for halvcrimpgrep. Usikker? La standard stå.
             </p>
