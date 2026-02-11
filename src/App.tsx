@@ -26,10 +26,10 @@ const OrderList = lazy(() => import("./pages/admin/OrderList"));
 const OrderDetails = lazy(() => import("./pages/admin/OrderDetails"));
 const AdminProducts = lazy(() => import("./pages/admin/AdminSettings"));
 
-import ProtectedRoute from "./components/admin/ProtectedRoute";
+const ProtectedRoute = lazy(() => import("./components/admin/ProtectedRoute"));
 import ScrollToTop from "./components/ScrollToTop";
 import AppErrorBoundary from "./components/AppErrorBoundary";
-import SupabaseConfigNotice from "@/components/SupabaseConfigNotice";
+const SupabaseConfigNotice = lazy(() => import("@/components/SupabaseConfigNotice"));
 
 // Loading fallback component
 const PageLoader = () => (
@@ -93,7 +93,7 @@ const App = () => (
       <CartProvider>
         <RuntimeErrorLogger />
         <Toaster />
-        <SupabaseConfigNotice />
+        <Suspense><SupabaseConfigNotice /></Suspense>
         <BrowserRouter>
           <ScrollToTop />
           <Suspense fallback={<PageLoader />}>

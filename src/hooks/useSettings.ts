@@ -1,5 +1,4 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/browserClient";
 import {
   MaintenanceModeSetting,
   ProductSetting,
@@ -197,6 +196,7 @@ export function useSettings() {
   return useQuery({
     queryKey: ["site-settings"],
     queryFn: async () => {
+      const { supabase } = await import("@/integrations/supabase/browserClient");
       if (!supabase) {
         // Allows app (incl. configurator) to render in Lovable preview even when env isn't set yet.
         return parseSettings([]);
@@ -218,6 +218,7 @@ export function useUpdateSetting() {
 
   return useMutation({
     mutationFn: async ({ key, value }: { key: string; value: unknown }) => {
+      const { supabase } = await import("@/integrations/supabase/browserClient");
       if (!supabase) {
         throw new Error(
           "Supabase er ikke konfigurert. Admin-innstillinger kan ikke lagres i denne hosten."
