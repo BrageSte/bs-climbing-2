@@ -1,12 +1,15 @@
+import { lazy, Suspense } from 'react'
 import Header from '@/components/Header'
-import Footer from '@/components/Footer'
 import ProductHero from '@/components/landing/ProductHero'
-import WhyCustom from '@/components/landing/WhyCustom'
-import HowItWorks from '@/components/landing/HowItWorks'
-import WhatYouGet from '@/components/landing/WhatYouGet'
-import Delivery from '@/components/landing/Delivery'
-import FAQ from '@/components/landing/FAQ'
-import CTASection from '@/components/landing/CTASection'
+
+// Lazy-load below-the-fold sections to speed up initial paint
+const WhyCustom = lazy(() => import('@/components/landing/WhyCustom'))
+const HowItWorks = lazy(() => import('@/components/landing/HowItWorks'))
+const WhatYouGet = lazy(() => import('@/components/landing/WhatYouGet'))
+const Delivery = lazy(() => import('@/components/landing/Delivery'))
+const FAQ = lazy(() => import('@/components/landing/FAQ'))
+const CTASection = lazy(() => import('@/components/landing/CTASection'))
+const Footer = lazy(() => import('@/components/Footer'))
 
 export default function Index() {
   return (
@@ -14,14 +17,18 @@ export default function Index() {
       <Header />
       <main>
         <ProductHero />
-        <WhyCustom />
-        <HowItWorks />
-        <WhatYouGet />
-        <Delivery />
-        <FAQ />
-        <CTASection />
+        <Suspense>
+          <WhyCustom />
+          <HowItWorks />
+          <WhatYouGet />
+          <Delivery />
+          <FAQ />
+          <CTASection />
+        </Suspense>
       </main>
-      <Footer />
+      <Suspense>
+        <Footer />
+      </Suspense>
     </>
   )
 }

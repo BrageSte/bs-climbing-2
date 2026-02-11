@@ -207,7 +207,9 @@ export function useSettings() {
       if (error) throw error;
       return parseSettings((data ?? []) as SettingsRow[]);
     },
-    staleTime: 60_000,
+    staleTime: 5 * 60_000,
+    // Return defaults immediately so the UI renders without waiting for Supabase.
+    placeholderData: DEFAULT_SETTINGS,
   });
 }
 

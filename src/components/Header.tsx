@@ -1,8 +1,9 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, lazy, Suspense } from 'react'
 import { Link } from 'react-router-dom'
 import { Menu, X, ShoppingBag } from 'lucide-react'
 import { useCart } from '@/contexts/CartContext'
-import CartDrawer from '@/components/cart/CartDrawer'
+
+const CartDrawer = lazy(() => import('@/components/cart/CartDrawer'))
 
 export default function Header() {
   const { itemCount, setIsCartOpen } = useCart()
@@ -127,7 +128,9 @@ export default function Header() {
       </div>
       
       {/* Cart Drawer */}
-      <CartDrawer />
+      <Suspense>
+        <CartDrawer />
+      </Suspense>
     </header>
   )
 }
