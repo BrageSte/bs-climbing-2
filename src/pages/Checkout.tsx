@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { ArrowLeft, CreditCard, Loader2, Truck, MapPin, Mail, Tag, Check, X } from 'lucide-react'
+import { ArrowLeft, Loader2, Truck, MapPin, Mail, Tag, Check, X } from 'lucide-react'
 import Header from '@/components/Header'
 import Footer from '@/components/Footer'
 import CartSummary from '@/components/cart/CartSummary'
@@ -91,7 +91,7 @@ export default function Checkout() {
   const [city, setCity] = useState('')
   
   const [isProcessing, setIsProcessing] = useState(false)
-  const [paymentMethod, setPaymentMethod] = useState<'vipps' | 'card'>('vipps')
+  const [paymentMethod] = useState<'card'>('card')
   const [digitalConsent, setDigitalConsent] = useState(false)
   const { toast } = useToast()
 
@@ -616,62 +616,6 @@ export default function Checkout() {
                 )}
               </div>
 
-              {/* Payment method - Only show if not free */}
-              {discountedTotal > 0 && (
-                <div className="bg-card border border-border rounded-2xl p-6">
-                  <h2 className="text-lg font-semibold mb-4">Betalingsmetode</h2>
-                  <div className="space-y-3">
-                    <button
-                      onClick={() => setPaymentMethod('vipps')}
-                      className={`w-full p-4 rounded-xl border transition-all flex items-center gap-4 ${
-                        paymentMethod === 'vipps'
-                          ? 'border-primary bg-primary/10'
-                          : 'border-border hover:border-primary/50'
-                      }`}
-                    >
-                      <div className="w-12 h-12 bg-[#FF5B24] rounded-xl flex items-center justify-center text-white font-bold text-lg">
-                        V
-                      </div>
-                      <div className="text-left">
-                        <div className="font-medium text-foreground">Vipps</div>
-                        <div className="text-sm text-muted-foreground">Betal enkelt med Vipps</div>
-                      </div>
-                      {paymentMethod === 'vipps' && (
-                        <div className="ml-auto w-5 h-5 bg-primary rounded-full flex items-center justify-center">
-                          <svg className="w-3 h-3 text-primary-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                          </svg>
-                        </div>
-                      )}
-                    </button>
-
-                    <button
-                      onClick={() => setPaymentMethod('card')}
-                      className={`w-full p-4 rounded-xl border transition-all flex items-center gap-4 ${
-                        paymentMethod === 'card'
-                          ? 'border-primary bg-primary/10'
-                          : 'border-border hover:border-primary/50'
-                      }`}
-                    >
-                      <div className="w-12 h-12 bg-surface-light rounded-xl flex items-center justify-center">
-                        <CreditCard className="w-6 h-6 text-muted-foreground" />
-                      </div>
-                      <div className="text-left">
-                        <div className="font-medium text-foreground">Kort / Apple Pay</div>
-                        <div className="text-sm text-muted-foreground">Visa, Mastercard, Apple Pay</div>
-                      </div>
-                      {paymentMethod === 'card' && (
-                        <div className="ml-auto w-5 h-5 bg-primary rounded-full flex items-center justify-center">
-                          <svg className="w-3 h-3 text-primary-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                          </svg>
-                        </div>
-                      )}
-                    </button>
-                  </div>
-                </div>
-              )}
-
               {/* Order items preview */}
               <div className="bg-card border border-border rounded-2xl p-6">
                 <h2 className="text-lg font-semibold mb-4">Din bestilling</h2>
@@ -711,7 +655,7 @@ export default function Checkout() {
 
             {/* Order summary sidebar */}
             <div className="lg:col-span-1">
-              <div className="bg-card border border-border rounded-2xl p-6 sticky top-24">
+              <div className="bg-card border border-border rounded-2xl p-6 sticky top-24 max-h-[calc(100vh-7rem)] overflow-y-auto">
                 <h2 className="text-lg font-semibold mb-4">Sammendrag</h2>
                 <CartSummary />
 
@@ -757,7 +701,7 @@ export default function Checkout() {
                     'Fullfør bestilling (Gratis)'
                   ) : (
                     <>
-                      {paymentMethod === 'vipps' ? 'Betal med Vipps' : 'Betal med kort / Apple Pay'}
+                      Betal med kort / Apple Pay
                       <span className="ml-1">{discountedTotal},- kr</span>
                     </>
                   )}
