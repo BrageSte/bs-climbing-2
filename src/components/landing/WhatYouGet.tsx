@@ -1,12 +1,10 @@
 import { motion } from "framer-motion";
-import { DEFAULT_PRODUCTS, DEFAULT_STL_FILE_PRICE } from "@/lib/siteDefaults";
+import { useLandingPrices } from "@/hooks/useLandingPrices";
 
 export default function WhatYouGet() {
-  const stlPrice = DEFAULT_STL_FILE_PRICE;
-  const printedPrices = DEFAULT_PRODUCTS
-    .map((product) => (Number.isFinite(product.price) ? product.price : null))
-    .filter((price): price is number => price !== null);
-  const printedPrice = printedPrices.length > 0 ? Math.min(...printedPrices) : 399;
+  const { data: landingPrices } = useLandingPrices();
+  const stlPrice = landingPrices.stlFilePrice;
+  const printedPrice = landingPrices.printedFromPrice;
 
   const deliverables = [
     {
@@ -46,7 +44,9 @@ export default function WhatYouGet() {
             >
               <div className="flex justify-between items-start mb-4">
                 <h3 className="text-xl font-semibold">{item.title}</h3>
-                <span className="text-2xl font-bold font-mono">{item.price}</span>
+                <span className="inline-block min-w-[7ch] text-right text-2xl font-bold font-mono tabular-nums">
+                  {item.price}
+                </span>
               </div>
               <p className="text-muted-foreground text-sm">{item.description}</p>
             </motion.div>
