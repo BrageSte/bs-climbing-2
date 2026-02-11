@@ -79,19 +79,13 @@ Hvis hosten din stotter Vite env vars kan du overstyre baked config med:
 
 Se `.env.example` for eksempelverdier og format.
 
-## Supabase/Stripe cutover
+## Supabase/Stripe deploy
 
-Denne appen bruker direkte Supabase-integrasjon (frontend + edge functions). For migrering mellom Supabase-prosjekter:
+Denne appen bruker direkte Supabase-integrasjon (frontend + edge functions).
 
-- Kjor runbook: `docs/supabase-cutover-runbook.md`
-- Bruk skript i `scripts/supabase/` for eksport/import/validering/deploy
-- Bruk secrets-mal: `scripts/supabase/new-project.secrets.env.example`
-- SQL-hjelpere finnes i `supabase/sql/cutover_helpers.sql`
-
-Viktig ved deploy etter cutover:
-
-- `VITE_SUPABASE_URL` ma peke til nytt Supabase-prosjekt.
-- `VITE_SUPABASE_PUBLISHABLE_KEY` ma bruke ny anon/publishable key.
+- Deploy edge functions: `npm run supabase:functions:deploy`
+- Sett secrets: `npm run supabase:secrets:set`
+- Secrets-mal: `scripts/supabase/new-project.secrets.env.example`
 
 Vedlikeholdsmodus for kasse styres via admin: `Admin > Settings > Vedlikeholdsmodus (kasse)`.
 
