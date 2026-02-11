@@ -1,13 +1,11 @@
 import { Link } from "react-router-dom";
 import { ArrowRight } from "lucide-react";
-import { DEFAULT_PRODUCTS, DEFAULT_STL_FILE_PRICE } from "@/lib/siteDefaults";
+import { useLandingPrices } from "@/hooks/useLandingPrices";
 
 export default function ProductHero() {
-  const stlPrice = DEFAULT_STL_FILE_PRICE;
-  const printedPrices = DEFAULT_PRODUCTS
-    .map((product) => (Number.isFinite(product.price) ? product.price : null))
-    .filter((price): price is number => price !== null);
-  const printedPrice = printedPrices.length > 0 ? Math.min(...printedPrices) : 399;
+  const { data: landingPrices } = useLandingPrices();
+  const stlPrice = landingPrices.stlFilePrice;
+  const printedPrice = landingPrices.printedFromPrice;
   return (
     <section className="relative min-h-[90vh] flex items-center justify-center overflow-hidden bg-background">
       {/* Subtle background gradient */}
@@ -50,10 +48,16 @@ export default function ProductHero() {
             {/* Price badges */}
             <div className="mt-6 flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-3">
               <span className="inline-flex items-center gap-1.5 bg-surface border border-border px-4 py-2 rounded-full text-sm">
-                STL-fil fra <span className="font-bold text-foreground">{stlPrice},-</span>
+                STL-fil fra{" "}
+                <span className="inline-block min-w-[6ch] text-right font-bold text-foreground tabular-nums">
+                  {stlPrice},-
+                </span>
               </span>
               <span className="inline-flex items-center gap-1.5 bg-valid/10 border border-valid/20 px-4 py-2 rounded-full text-sm text-valid">
-                Ferdig printet fra <span className="font-bold">{printedPrice},-</span>
+                Ferdig printet fra{" "}
+                <span className="inline-block min-w-[6ch] text-right font-bold tabular-nums">
+                  {printedPrice},-
+                </span>
               </span>
             </div>
 
