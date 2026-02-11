@@ -3,7 +3,6 @@
 import { createContext, useContext, useState, useEffect, ReactNode, useCallback, useMemo } from 'react'
 import { CartItem, Product, DeliveryMethod, isDigitalOnlyCart } from '@/types/shop'
 import { useSettings, DEFAULT_SETTINGS } from '@/hooks/useSettings'
-import { supabase } from '@/integrations/supabase/browserClient'
 
 interface CartContextType {
   items: CartItem[]
@@ -93,8 +92,10 @@ export function CartProvider({ children }: { children: ReactNode }) {
       const normalizedCode = code.toUpperCase().trim()
       if (!normalizedCode) return false
 
+      const { supabase } = await import('@/integrations/supabase/browserClient')
+      if (!supabase) return false
+
       const sb = supabase
-      if (!sb) return false
 
       try {
         const { data, error } = await sb.functions.invoke('validate-promo', {
@@ -126,10 +127,11 @@ export function CartProvider({ children }: { children: ReactNode }) {
     if (!promoCode) return
 
     let cancelled = false
-    const sb = supabase
-    if (!sb) return
 
     void (async () => {
+      const { supabase } = await import('@/integrations/supabase/browserClient')
+      const sb = supabase
+      if (!sb || cancelled) return
       try {
         const { data, error } = await sb.functions.invoke('validate-promo', {
           body: { promoCode, totalNok: total }

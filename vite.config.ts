@@ -26,6 +26,7 @@ export default defineConfig(({ mode }) => ({
           'three-vendor': ['three', '@react-three/fiber', '@react-three/drei'],
           'motion-vendor': ['framer-motion'],
           'radix-vendor': ['@radix-ui/react-dialog', '@radix-ui/react-accordion'],
+          'supabase-vendor': ['@supabase/supabase-js'],
         },
       },
     },
