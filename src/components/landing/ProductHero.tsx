@@ -1,11 +1,10 @@
 import { Link } from "react-router-dom";
 import { ArrowRight } from "lucide-react";
-import { useSettings } from "@/hooks/useSettings";
+import { DEFAULT_PRODUCTS, DEFAULT_STL_FILE_PRICE } from "@/lib/siteDefaults";
 
 export default function ProductHero() {
-  const { data: settings } = useSettings();
-  const stlPrice = settings?.stl_file_price ?? 199;
-  const printedPrices = (settings?.products ?? [])
+  const stlPrice = DEFAULT_STL_FILE_PRICE;
+  const printedPrices = DEFAULT_PRODUCTS
     .map((product) => (Number.isFinite(product.price) ? product.price : null))
     .filter((price): price is number => price !== null);
   const printedPrice = printedPrices.length > 0 ? Math.min(...printedPrices) : 399;

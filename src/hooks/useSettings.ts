@@ -5,32 +5,9 @@ import {
   PromoCodeSetting,
   SiteSettings,
 } from "@/types/admin";
+import { DEFAULT_SITE_SETTINGS } from "@/lib/siteDefaults";
 
-const DEFAULT_SETTINGS: SiteSettings = {
-  products: [
-    {
-      variant: "shortedge",
-      name: "Compact",
-      price: 399,
-      description:
-        "Ultrakompakt design tilpasset fingrene. Individuelt tilpassede steg for optimal halvkrimpp-trening.",
-    },
-    {
-      variant: "longedge",
-      name: "Long Edge",
-      price: 499,
-      description:
-        "Ekstra lang flate pa enden (80mm), sa du kan crimpe som pa en vanlig 20 mm kant. Komfortabel avrunding. Dette er ultimate-varianten: individuelle steg med custom mal til fingrene + en vanlig 20 mm flatkant for trening.",
-    },
-  ],
-  stl_file_price: 199,
-  shipping_cost: 79,
-  promo_codes: {},
-  maintenance_mode: {
-    enabled: false,
-    message: "Bestilling er midlertidig satt pa pause. Prov igjen om kort tid.",
-  },
-};
+const DEFAULT_SETTINGS: SiteSettings = DEFAULT_SITE_SETTINGS;
 
 type SettingsRow = {
   key: string;

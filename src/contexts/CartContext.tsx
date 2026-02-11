@@ -1,8 +1,9 @@
 'use client'
 
 import { createContext, useContext, useState, useEffect, ReactNode, useCallback, useMemo } from 'react'
+import type { SupabaseClient } from '@supabase/supabase-js'
 import { CartItem, Product, DeliveryMethod, isDigitalOnlyCart } from '@/types/shop'
-import { useSettings, DEFAULT_SETTINGS } from '@/hooks/useSettings'
+import { DEFAULT_SHIPPING_COST } from '@/lib/siteDefaults'
 
 interface CartContextType {
   items: CartItem[]
@@ -30,11 +31,19 @@ interface CartContextType {
 const CartContext = createContext<CartContextType | undefined>(undefined)
 
 const CART_STORAGE_KEY = 'bs-climbing-cart'
+let supabaseImportPromise: Promise<SupabaseClient | null> | null = null
+
+async function loadSupabaseClient(): Promise<SupabaseClient | null> {
+  if (!supabaseImportPromise) {
+    supabaseImportPromise = import('@/integrations/supabase/lazyClient')
+      .then((module) => module.getSupabaseClientLazy())
+      .catch(() => null)
+  }
+
+  return supabaseImportPromise
+}
 
 export function CartProvider({ children }: { children: ReactNode }) {
-  const { data: settings } = useSettings()
-  const shippingCost = settings?.shipping_cost ?? DEFAULT_SETTINGS.shipping_cost
-
   const [items, setItems] = useState<CartItem[]>([])
   const [isCartOpen, setIsCartOpen] = useState(false)
   const [isHydrated, setIsHydrated] = useState(false)
@@ -80,8 +89,8 @@ export function CartProvider({ children }: { children: ReactNode }) {
     if (isDigitalOnlyCart(items)) return 0
     if (!deliveryMethod) return 0
     if (deliveryMethod === 'pickup-gneis' || deliveryMethod === 'pickup-oslo') return 0
-    return shippingCost
-  }, [items, deliveryMethod, shippingCost])
+    return DEFAULT_SHIPPING_COST
+  }, [items, deliveryMethod])
   
   const total = subtotal + shipping
 
@@ -92,10 +101,8 @@ export function CartProvider({ children }: { children: ReactNode }) {
       const normalizedCode = code.toUpperCase().trim()
       if (!normalizedCode) return false
 
-      const { supabase } = await import('@/integrations/supabase/browserClient')
-      if (!supabase) return false
-
-      const sb = supabase
+      const sb = await loadSupabaseClient()
+      if (!sb) return false
 
       try {
         const { data, error } = await sb.functions.invoke('validate-promo', {
@@ -129,9 +136,9 @@ export function CartProvider({ children }: { children: ReactNode }) {
     let cancelled = false
 
     void (async () => {
-      const { supabase } = await import('@/integrations/supabase/browserClient')
-      const sb = supabase
+      const sb = await loadSupabaseClient()
       if (!sb || cancelled) return
+
       try {
         const { data, error } = await sb.functions.invoke('validate-promo', {
           body: { promoCode, totalNok: total }

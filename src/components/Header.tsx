@@ -6,7 +6,7 @@ import { useCart } from '@/contexts/CartContext'
 const CartDrawer = lazy(() => import('@/components/cart/CartDrawer'))
 
 export default function Header() {
-  const { itemCount, setIsCartOpen } = useCart()
+  const { itemCount, isCartOpen, setIsCartOpen } = useCart()
   const [isScrolled, setIsScrolled] = useState(false)
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
 
@@ -128,9 +128,11 @@ export default function Header() {
       </div>
       
       {/* Cart Drawer */}
-      <Suspense>
-        <CartDrawer />
-      </Suspense>
+      {isCartOpen && (
+        <Suspense fallback={null}>
+          <CartDrawer />
+        </Suspense>
+      )}
     </header>
   )
 }
