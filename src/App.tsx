@@ -1,5 +1,3 @@
-import { Toaster } from "@/components/ui/toaster";
-import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { CartProvider } from "@/contexts/CartContext";
@@ -25,11 +23,16 @@ const AdminDashboard = lazy(() => import("./pages/admin/AdminDashboard"));
 const OrderList = lazy(() => import("./pages/admin/OrderList"));
 const OrderDetails = lazy(() => import("./pages/admin/OrderDetails"));
 const AdminProducts = lazy(() => import("./pages/admin/AdminSettings"));
-
 const ProtectedRoute = lazy(() => import("./components/admin/ProtectedRoute"));
+const Toaster = lazy(() =>
+  import("@/components/ui/toaster").then((module) => ({ default: module.Toaster }))
+);
+const SupabaseConfigNotice = import.meta.env.DEV
+  ? lazy(() => import("@/components/SupabaseConfigNotice"))
+  : null;
+
 import ScrollToTop from "./components/ScrollToTop";
 import AppErrorBoundary from "./components/AppErrorBoundary";
-const SupabaseConfigNotice = lazy(() => import("@/components/SupabaseConfigNotice"));
 
 // Loading fallback component
 const PageLoader = () => (
@@ -88,59 +91,63 @@ function RuntimeErrorLogger() {
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      staleTime: 5 * 60_000,   // 5 min — avoid unnecessary refetches on navigation
-      gcTime: 10 * 60_000,     // 10 min garbage collection
+      staleTime: 5 * 60_000,
+      gcTime: 10 * 60_000,
     },
   },
 });
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <CartProvider>
-        <RuntimeErrorLogger />
+    <CartProvider>
+      <RuntimeErrorLogger />
+      <Suspense fallback={null}>
         <Toaster />
-        <Suspense><SupabaseConfigNotice /></Suspense>
-        <BrowserRouter>
-          <ScrollToTop />
-          <Suspense fallback={<PageLoader />}>
-            <Routes>
-              <Route path="/" element={<Index />} />
-              <Route
-                path="/configure"
-                element={
-                  <AppErrorBoundary
-                    boundaryName="configure-route"
-                    fallback={<ConfigureRouteFallback />}
-                  >
-                    <Configure />
-                  </AppErrorBoundary>
-                }
-              />
-              <Route path="/cart" element={<Cart />} />
-              <Route path="/checkout" element={<Checkout />} />
-              <Route path="/checkout/success" element={<CheckoutSuccess />} />
-              <Route path="/checkout/cancel" element={<CheckoutCancel />} />
-              <Route path="/order-status" element={<OrderStatusPage />} />
-              <Route path="/shipping" element={<Shipping />} />
-              <Route path="/returns" element={<Returns />} />
-              <Route path="/privacy" element={<Privacy />} />
-              <Route path="/contact" element={<Contact />} />
+      </Suspense>
+      {SupabaseConfigNotice ? (
+        <Suspense fallback={null}>
+          <SupabaseConfigNotice />
+        </Suspense>
+      ) : null}
+      <BrowserRouter>
+        <ScrollToTop />
+        <Suspense fallback={<PageLoader />}>
+          <Routes>
+            <Route path="/" element={<Index />} />
+            <Route
+              path="/configure"
+              element={
+                <AppErrorBoundary
+                  boundaryName="configure-route"
+                  fallback={<ConfigureRouteFallback />}
+                >
+                  <Configure />
+                </AppErrorBoundary>
+              }
+            />
+            <Route path="/cart" element={<Cart />} />
+            <Route path="/checkout" element={<Checkout />} />
+            <Route path="/checkout/success" element={<CheckoutSuccess />} />
+            <Route path="/checkout/cancel" element={<CheckoutCancel />} />
+            <Route path="/order-status" element={<OrderStatusPage />} />
+            <Route path="/shipping" element={<Shipping />} />
+            <Route path="/returns" element={<Returns />} />
+            <Route path="/privacy" element={<Privacy />} />
+            <Route path="/contact" element={<Contact />} />
 
-              {/* Admin routes */}
-              <Route path="/admin/login" element={<AdminLogin />} />
-              <Route path="/admin" element={<ProtectedRoute><AdminDashboard /></ProtectedRoute>} />
-              <Route path="/admin/orders" element={<ProtectedRoute><OrderList /></ProtectedRoute>} />
-              <Route path="/admin/orders/:orderId" element={<ProtectedRoute><OrderDetails /></ProtectedRoute>} />
-              <Route path="/admin/products" element={<ProtectedRoute><AdminProducts /></ProtectedRoute>} />
+            {/* Admin routes */}
+            <Route path="/admin/login" element={<AdminLogin />} />
+            <Route path="/admin" element={<ProtectedRoute><AdminDashboard /></ProtectedRoute>} />
+            <Route path="/admin/orders" element={<ProtectedRoute><OrderList /></ProtectedRoute>} />
+            <Route path="/admin/orders/:orderId" element={<ProtectedRoute><OrderDetails /></ProtectedRoute>} />
+            <Route path="/admin/products" element={<ProtectedRoute><AdminProducts /></ProtectedRoute>} />
 
-              {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-              <Route path="*" element={<NotFound />} />
-            </Routes>
-          </Suspense>
-        </BrowserRouter>
-      </CartProvider>
-    </TooltipProvider>
+            {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </Suspense>
+      </BrowserRouter>
+    </CartProvider>
   </QueryClientProvider>
 );
 

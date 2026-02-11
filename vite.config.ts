@@ -22,20 +22,50 @@ export default defineConfig(({ mode }) => ({
     rollupOptions: {
       output: {
         manualChunks(id) {
-          // React core — always needed
-          if (id.includes('node_modules/react/') || id.includes('node_modules/react-dom/') || id.includes('node_modules/react-router-dom/')) {
-            return 'react-vendor';
+          if (
+            id.includes("vite/preload-helper") ||
+            id.includes("modulepreload-polyfill")
+          ) {
+            return "vendor-runtime";
           }
-          // Three.js — DO NOT put in manualChunks; Vite adds modulepreload
-          // for all manual chunks which defeats lazy loading. Let Vite
-          // code-split naturally so it only loads when /configure is visited.
-          // Radix UI — all packages in one chunk
-          if (id.includes('node_modules/@radix-ui/')) {
-            return 'radix-vendor';
+
+          if (!id.includes("node_modules")) {
+            return;
           }
-          // Supabase
-          if (id.includes('node_modules/@supabase/')) {
-            return 'supabase-vendor';
+
+          if (
+            id.includes("/three/") ||
+            id.includes("/@react-three/") ||
+            id.includes("/three-stdlib/") ||
+            id.includes("/three-mesh-bvh/")
+          ) {
+            return "vendor-three";
+          }
+
+          if (id.includes("/@supabase/")) {
+            return "vendor-supabase";
+          }
+
+          if (id.includes("/@radix-ui/")) {
+            return "vendor-radix";
+          }
+
+          if (
+            id.includes("/react/") ||
+            id.includes("/react-dom/") ||
+            id.includes("/react-router/") ||
+            id.includes("/react-router-dom/") ||
+            id.includes("/scheduler/")
+          ) {
+            return "vendor-react";
+          }
+
+          if (
+            id.includes("/framer-motion/") ||
+            id.includes("/motion-dom/") ||
+            id.includes("/motion-utils/")
+          ) {
+            return "vendor-motion";
           }
         },
       },
