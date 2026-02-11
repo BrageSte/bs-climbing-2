@@ -21,12 +21,22 @@ export default defineConfig(({ mode }) => ({
   build: {
     rollupOptions: {
       output: {
-        manualChunks: {
-          'react-vendor': ['react', 'react-dom', 'react-router-dom'],
-          'three-vendor': ['three', '@react-three/fiber', '@react-three/drei'],
-          'motion-vendor': ['framer-motion'],
-          'radix-vendor': ['@radix-ui/react-dialog', '@radix-ui/react-accordion'],
-          'supabase-vendor': ['@supabase/supabase-js'],
+        manualChunks(id) {
+          // React core — always needed
+          if (id.includes('node_modules/react/') || id.includes('node_modules/react-dom/') || id.includes('node_modules/react-router-dom/')) {
+            return 'react-vendor';
+          }
+          // Three.js — DO NOT put in manualChunks; Vite adds modulepreload
+          // for all manual chunks which defeats lazy loading. Let Vite
+          // code-split naturally so it only loads when /configure is visited.
+          // Radix UI — all packages in one chunk
+          if (id.includes('node_modules/@radix-ui/')) {
+            return 'radix-vendor';
+          }
+          // Supabase
+          if (id.includes('node_modules/@supabase/')) {
+            return 'supabase-vendor';
+          }
         },
       },
     },

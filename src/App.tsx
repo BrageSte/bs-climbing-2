@@ -85,7 +85,14 @@ function RuntimeErrorLogger() {
   return null;
 }
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 5 * 60_000,   // 5 min — avoid unnecessary refetches on navigation
+      gcTime: 10 * 60_000,     // 10 min garbage collection
+    },
+  },
+});
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
