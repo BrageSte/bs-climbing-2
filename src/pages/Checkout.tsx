@@ -775,7 +775,7 @@ export default function Checkout() {
 
                 <p className="text-xs text-muted-foreground text-center mt-4">
                   Ved å fullføre kjøpet godtar du våre{' '}
-                  <Link to="/terms" className="text-primary hover:underline">vilkår</Link>
+                  <Link to="/returns" className="text-primary hover:underline">vilkår</Link>
                   {' '}og{' '}
                   <Link to="/privacy" className="text-primary hover:underline">personvernerklæring</Link>.
                 </p>

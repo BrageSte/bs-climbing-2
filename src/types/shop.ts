@@ -105,6 +105,12 @@ export function getShippingCost(items: CartItem[], deliveryMethod: DeliveryMetho
   return SHIPPING_COST
 }
 
+export function getDeliveryMethodLabel(method: DeliveryMethod): string {
+  if (method === 'shipping') return 'Hjemlevering'
+  const pickup = PICKUP_LOCATIONS.find(l => l.id === method)
+  return pickup ? `Henting: ${pickup.name}` : 'Levering'
+}
+
 export function generateProductId(config: BlockConfig, orderType: 'file' | 'printed'): string {
   const { blockVariant, widths, depth } = config
   const widthSum = Object.values(widths).join('-')

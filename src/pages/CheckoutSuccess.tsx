@@ -6,7 +6,7 @@ import Footer from "@/components/Footer";
 import { useCart } from "@/contexts/CartContext";
 import { supabase } from "@/integrations/supabase/browserClient";
 import { DeliveryMethod, Order, PICKUP_LOCATIONS, ShippingAddress, isDigitalOnlyCart } from "@/types/shop";
-import { getDeliveryMethodLabel } from "@/lib/stripe-mock";
+import { getDeliveryMethodLabel } from "@/types/shop";
 
 const POLL_INTERVAL_MS = 2500;
 const POLL_TIMEOUT_MS = 60_000;
