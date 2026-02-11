@@ -419,29 +419,31 @@ export default function Checkout() {
                     {/* Shipping option */}
                     <button
                       onClick={() => setDeliveryMethod('shipping')}
-                      className={`w-full p-4 rounded-xl border transition-all flex items-center gap-4 ${
+                      className={`w-full p-4 rounded-xl border transition-all flex flex-col gap-3 text-left sm:flex-row sm:items-center sm:gap-4 ${
                         deliveryMethod === 'shipping'
                           ? 'border-primary bg-primary/10'
                           : 'border-border hover:border-primary/50'
                       }`}
                     >
-                      <div className="w-12 h-12 bg-surface-light rounded-xl flex items-center justify-center">
-                        <Truck className="w-6 h-6 text-primary" />
-                      </div>
-                      <div className="text-left flex-1">
-                        <div className="font-medium text-foreground">Hjemlevering</div>
-                        <div className="text-sm text-muted-foreground">Sendes med Posten/Bring (3-5 dager)</div>
-                      </div>
-                      <div className="text-right">
-                        <span className="font-medium text-foreground">{dynamicShippingCost},- kr</span>
-                      </div>
-                      {deliveryMethod === 'shipping' && (
-                        <div className="w-5 h-5 bg-primary rounded-full flex items-center justify-center">
-                          <svg className="w-3 h-3 text-primary-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                          </svg>
+                      <div className="flex w-full items-center gap-3 sm:flex-1 sm:min-w-0 sm:gap-4">
+                        <div className="w-12 h-12 bg-surface-light rounded-xl flex items-center justify-center shrink-0">
+                          <Truck className="w-6 h-6 text-primary" />
                         </div>
-                      )}
+                        <div className="text-left flex-1 min-w-0">
+                          <div className="font-medium text-foreground">Hjemlevering</div>
+                          <div className="text-sm text-muted-foreground break-words">Sendes med Posten/Bring (3-5 dager)</div>
+                        </div>
+                      </div>
+                      <div className="flex w-full items-center justify-between sm:w-auto sm:justify-end sm:gap-3 sm:text-right">
+                        <span className="font-medium text-foreground">{dynamicShippingCost},- kr</span>
+                        {deliveryMethod === 'shipping' && (
+                          <div className="w-5 h-5 bg-primary rounded-full flex items-center justify-center shrink-0">
+                            <svg className="w-3 h-3 text-primary-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                            </svg>
+                          </div>
+                        )}
+                      </div>
                     </button>
 
                     {/* Pickup options */}
@@ -449,32 +451,34 @@ export default function Checkout() {
                       <button
                         key={location.id}
                         onClick={() => setDeliveryMethod(location.id)}
-                        className={`w-full p-4 rounded-xl border transition-all flex items-center gap-4 ${
+                        className={`w-full p-4 rounded-xl border transition-all flex flex-col gap-3 text-left sm:flex-row sm:items-center sm:gap-4 ${
                           deliveryMethod === location.id
                             ? 'border-primary bg-primary/10'
                             : 'border-border hover:border-primary/50'
                         }`}
                       >
-                        <div className="w-12 h-12 bg-surface-light rounded-xl flex items-center justify-center">
-                          <MapPin className="w-6 h-6 text-valid" />
+                        <div className="flex w-full items-center gap-3 sm:flex-1 sm:min-w-0 sm:gap-4">
+                          <div className="w-12 h-12 bg-surface-light rounded-xl flex items-center justify-center shrink-0">
+                            <MapPin className="w-6 h-6 text-valid" />
+                          </div>
+                          <div className="text-left flex-1 min-w-0">
+                            <div className="font-medium text-foreground break-words">{location.name}</div>
+                            <div className="text-sm text-muted-foreground break-words">{location.address}</div>
+                            {location.description && (
+                              <div className="text-xs text-muted-foreground mt-0.5 break-words">{location.description}</div>
+                            )}
+                          </div>
                         </div>
-                        <div className="text-left flex-1">
-                          <div className="font-medium text-foreground">{location.name}</div>
-                          <div className="text-sm text-muted-foreground">{location.address}</div>
-                          {location.description && (
-                            <div className="text-xs text-muted-foreground mt-0.5">{location.description}</div>
+                        <div className="flex w-full items-center justify-between sm:w-auto sm:justify-end sm:gap-3 sm:text-right">
+                          <span className="font-medium text-valid">Gratis</span>
+                          {deliveryMethod === location.id && (
+                            <div className="w-5 h-5 bg-primary rounded-full flex items-center justify-center shrink-0">
+                              <svg className="w-3 h-3 text-primary-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                              </svg>
+                            </div>
                           )}
                         </div>
-                        <div className="text-right">
-                          <span className="font-medium text-valid">Gratis</span>
-                        </div>
-                        {deliveryMethod === location.id && (
-                          <div className="w-5 h-5 bg-primary rounded-full flex items-center justify-center">
-                            <svg className="w-3 h-3 text-primary-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                            </svg>
-                          </div>
-                        )}
                       </button>
                     ))}
                   </div>
