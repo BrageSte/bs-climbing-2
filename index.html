@@ -27,7 +27,40 @@
   </head>
 
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <!--
+        Inline skeleton: paints hero text as soon as CSS loads, before JS executes.
+        React replaces this on mount. Eliminates ~2 s LCP render-delay.
+      -->
+      <div style="min-height:100vh;background:hsl(222,47%,6%);color:hsl(220,14%,90%);font-family:Inter,system-ui,sans-serif">
+        <!-- Header skeleton -->
+        <header style="position:fixed;top:0;left:0;right:0;z-index:50">
+          <nav style="display:flex;align-items:center;justify-content:space-between;height:4rem;max-width:80rem;margin:0 auto;padding:0 1rem">
+            <span style="font-weight:600;font-size:1.125rem;letter-spacing:0.05em">BS CLIMBING</span>
+          </nav>
+        </header>
+        <!-- Hero skeleton -->
+        <section style="min-height:90vh;display:flex;align-items:center;justify-content:center;overflow:hidden">
+          <div style="width:100%;max-width:64rem;margin:0 auto;padding:4rem 1rem">
+            <div style="text-align:center">
+              <h1 style="font-size:2.25rem;font-weight:700;letter-spacing:-0.025em;line-height:1.1;margin:0 0 1rem">
+                Stepper
+                <span style="display:block;color:hsl(220,9%,64%);font-weight:500;font-size:1.25rem;margin-top:0.5rem">
+                  – bygget etter hver finger
+                </span>
+              </h1>
+              <p style="font-size:1rem;color:hsl(220,9%,64%);max-width:32rem;margin:0 auto;line-height:1.625">
+                Crimpblokker finnes overalt. Dette er Stepper: Du taster inn fingerhøydene dine, og vi lager en custom
+                Stepper som passer perfekt til din hånd.
+              </p>
+              <p style="font-size:1rem;font-weight:500;margin:1rem auto 2rem;max-width:32rem;line-height:1.625;color:hsl(220,14%,90%,.9)">
+                Jevnere drag. Mer rekruttering. Råere fingerstyrke.
+              </p>
+            </div>
+          </div>
+        </section>
+      </div>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
