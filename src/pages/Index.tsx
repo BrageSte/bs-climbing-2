@@ -1,32 +1,93 @@
-import { lazy, Suspense } from 'react'
+import { lazy, Suspense, useEffect } from 'react'
 import Header from '@/components/Header'
 import ProductHero from '@/components/landing/ProductHero'
+import WhyCustom from '@/components/landing/WhyCustom'
+import HowItWorks from '@/components/landing/HowItWorks'
 
-// Lazy-load below-the-fold sections to speed up initial paint
-const WhyCustom = lazy(() => import('@/components/landing/WhyCustom'))
-const HowItWorks = lazy(() => import('@/components/landing/HowItWorks'))
-const WhatYouGet = lazy(() => import('@/components/landing/WhatYouGet'))
-const Delivery = lazy(() => import('@/components/landing/Delivery'))
-const FAQ = lazy(() => import('@/components/landing/FAQ'))
-const CTASection = lazy(() => import('@/components/landing/CTASection'))
-const Footer = lazy(() => import('@/components/Footer'))
+const loadWhatYouGet = () => import('@/components/landing/WhatYouGet')
+const loadDelivery = () => import('@/components/landing/Delivery')
+const loadFAQ = () => import('@/components/landing/FAQ')
+const loadCTASection = () => import('@/components/landing/CTASection')
+const loadFooter = () => import('@/components/Footer')
+
+const WhatYouGet = lazy(loadWhatYouGet)
+const Delivery = lazy(loadDelivery)
+const FAQ = lazy(loadFAQ)
+const CTASection = lazy(loadCTASection)
+const Footer = lazy(loadFooter)
+
+const IDLE_PREFETCH_TIMEOUT_MS = 1200
+const FALLBACK_PREFETCH_DELAY_MS = 500
+
+const SectionFallback = ({ label }: { label: string }) => (
+  <section className="py-24 bg-background">
+    <div className="max-w-4xl mx-auto px-4 sm:px-6">
+      <div className="h-7 w-44 rounded bg-surface-light/70" aria-hidden />
+      <p className="mt-4 text-sm text-muted-foreground">Laster {label} ...</p>
+    </div>
+  </section>
+)
+
+const FooterFallback = () => (
+  <div className="border-t border-border bg-background py-8">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6">
+      <p className="text-sm text-muted-foreground">Laster footer ...</p>
+    </div>
+  </div>
+)
 
 export default function Index() {
+  useEffect(() => {
+    const prefetchSections = () => {
+      void loadWhatYouGet()
+      void loadDelivery()
+      void loadFAQ()
+      void loadCTASection()
+      void loadFooter()
+    }
+
+    const idleApi = window as Window & {
+      requestIdleCallback?: (callback: () => void, options?: { timeout: number }) => number
+      cancelIdleCallback?: (handle: number) => void
+    }
+
+    if (typeof idleApi.requestIdleCallback === 'function') {
+      const idleHandle = idleApi.requestIdleCallback(prefetchSections, {
+        timeout: IDLE_PREFETCH_TIMEOUT_MS,
+      })
+
+      return () => {
+        if (typeof idleApi.cancelIdleCallback === 'function') {
+          idleApi.cancelIdleCallback(idleHandle)
+        }
+      }
+    }
+
+    const timeoutHandle = window.setTimeout(prefetchSections, FALLBACK_PREFETCH_DELAY_MS)
+    return () => window.clearTimeout(timeoutHandle)
+  }, [])
+
   return (
     <>
       <Header />
       <main>
         <ProductHero />
-        <Suspense>
-          <WhyCustom />
-          <HowItWorks />
+        <WhyCustom />
+        <HowItWorks />
+        <Suspense fallback={<SectionFallback label="formatseksjonen" />}>
           <WhatYouGet />
+        </Suspense>
+        <Suspense fallback={<SectionFallback label="leveringsseksjonen" />}>
           <Delivery />
+        </Suspense>
+        <Suspense fallback={<SectionFallback label="FAQ" />}>
           <FAQ />
+        </Suspense>
+        <Suspense fallback={<SectionFallback label="neste steg" />}>
           <CTASection />
         </Suspense>
       </main>
-      <Suspense>
+      <Suspense fallback={<FooterFallback />}>
         <Footer />
       </Suspense>
     </>

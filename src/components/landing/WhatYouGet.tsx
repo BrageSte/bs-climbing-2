@@ -2,7 +2,7 @@ import { motion } from "framer-motion";
 import { useLandingPrices } from "@/hooks/useLandingPrices";
 
 export default function WhatYouGet() {
-  const { data: landingPrices } = useLandingPrices();
+  const { data: landingPrices } = useLandingPrices({ deferUntilIdle: true });
   const stlPrice = landingPrices.stlFilePrice;
   const printedPrice = landingPrices.printedFromPrice;
 

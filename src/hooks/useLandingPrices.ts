@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { DEFAULT_PRODUCTS, DEFAULT_STL_FILE_PRICE } from "@/lib/siteDefaults";
 import type { ProductSetting } from "@/types/admin";
@@ -12,6 +13,14 @@ type LandingPrices = {
   printedFromPrice: number;
   products: ProductSetting[];
 };
+
+type UseLandingPricesOptions = {
+  deferUntilIdle?: boolean;
+  enabled?: boolean;
+};
+
+const IDLE_TIMEOUT_MS = 1200;
+const IDLE_FALLBACK_DELAY_MS = 500;
 
 function toFiniteNumber(value: unknown): number | null {
   if (typeof value === "number" && Number.isFinite(value)) return value;
@@ -115,7 +124,48 @@ function parseLandingPrices(rows: SettingsRow[]): LandingPrices {
   };
 }
 
-export function useLandingPrices() {
+export function useLandingPrices(options: UseLandingPricesOptions = {}) {
+  const { deferUntilIdle = false, enabled = true } = options;
+  const [idleReady, setIdleReady] = useState(!deferUntilIdle);
+
+  useEffect(() => {
+    if (!deferUntilIdle) {
+      setIdleReady(true);
+      return;
+    }
+
+    setIdleReady(false);
+    let active = true;
+
+    const markReady = () => {
+      if (active) setIdleReady(true);
+    };
+
+    const idleApi = window as Window & {
+      requestIdleCallback?: (callback: () => void, options?: { timeout: number }) => number;
+      cancelIdleCallback?: (handle: number) => void;
+    };
+
+    if (typeof idleApi.requestIdleCallback === "function") {
+      const idleHandle = idleApi.requestIdleCallback(markReady, {
+        timeout: IDLE_TIMEOUT_MS,
+      });
+
+      return () => {
+        active = false;
+        if (typeof idleApi.cancelIdleCallback === "function") {
+          idleApi.cancelIdleCallback(idleHandle);
+        }
+      };
+    }
+
+    const timeoutHandle = window.setTimeout(markReady, IDLE_FALLBACK_DELAY_MS);
+    return () => {
+      active = false;
+      window.clearTimeout(timeoutHandle);
+    };
+  }, [deferUntilIdle]);
+
   const query = useQuery({
     queryKey: ["landing-prices"],
     queryFn: async (): Promise<LandingPrices> => {
@@ -134,6 +184,7 @@ export function useLandingPrices() {
     staleTime: 5 * 60_000,
     refetchOnWindowFocus: false,
     placeholderData: DEFAULT_LANDING_PRICES,
+    enabled: enabled && idleReady,
   });
 
   return {

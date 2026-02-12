@@ -3,7 +3,7 @@ import { ArrowRight } from "lucide-react";
 import { useLandingPrices } from "@/hooks/useLandingPrices";
 
 export default function ProductHero() {
-  const { data: landingPrices } = useLandingPrices();
+  const { data: landingPrices } = useLandingPrices({ deferUntilIdle: true });
   const stlPrice = landingPrices.stlFilePrice;
   const printedPrice = landingPrices.printedFromPrice;
   return (

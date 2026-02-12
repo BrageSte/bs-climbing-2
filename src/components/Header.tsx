@@ -3,7 +3,17 @@ import { Link } from 'react-router-dom'
 import { Menu, X, ShoppingBag } from 'lucide-react'
 import { useCart } from '@/contexts/CartContext'
 
-const CartDrawer = lazy(() => import('@/components/cart/CartDrawer'))
+const loadCartDrawer = () => import('@/components/cart/CartDrawer')
+const CartDrawer = lazy(loadCartDrawer)
+
+const IDLE_PREFETCH_TIMEOUT_MS = 1200
+const FALLBACK_PREFETCH_DELAY_MS = 500
+
+const CartDrawerFallback = () => (
+  <div className="fixed right-4 top-20 z-[60] rounded-lg border border-border bg-card px-3 py-2 text-xs text-muted-foreground shadow-lg">
+    Laster handlekurv...
+  </div>
+)
 
 export default function Header() {
   const { itemCount, isCartOpen, setIsCartOpen } = useCart()
@@ -18,8 +28,39 @@ export default function Header() {
     return () => window.removeEventListener('scroll', handleScroll)
   }, [])
 
+  useEffect(() => {
+    const idleApi = window as Window & {
+      requestIdleCallback?: (callback: () => void, options?: { timeout: number }) => number
+      cancelIdleCallback?: (handle: number) => void
+    }
+
+    if (typeof idleApi.requestIdleCallback === 'function') {
+      const idleHandle = idleApi.requestIdleCallback(() => {
+        void loadCartDrawer()
+      }, {
+        timeout: IDLE_PREFETCH_TIMEOUT_MS,
+      })
+
+      return () => {
+        if (typeof idleApi.cancelIdleCallback === 'function') {
+          idleApi.cancelIdleCallback(idleHandle)
+        }
+      }
+    }
+
+    const timeoutHandle = window.setTimeout(() => {
+      void loadCartDrawer()
+    }, FALLBACK_PREFETCH_DELAY_MS)
+    return () => window.clearTimeout(timeoutHandle)
+  }, [])
+
   const closeMobileMenu = () => {
     setIsMobileMenuOpen(false)
+  }
+
+  const handleOpenCart = () => {
+    void loadCartDrawer()
+    setIsCartOpen(true)
   }
 
   return (
@@ -60,7 +101,10 @@ export default function Header() {
             
             {/* Cart button */}
             <button
-              onClick={() => setIsCartOpen(true)}
+              onClick={handleOpenCart}
+              onPointerEnter={() => {
+                void loadCartDrawer()
+              }}
               className="relative p-2 text-muted-foreground hover:text-foreground transition-colors"
               aria-label="Åpne handlekurv"
             >
@@ -76,7 +120,10 @@ export default function Header() {
           {/* Mobile: Cart + Menu */}
           <div className="md:hidden flex items-center gap-2">
             <button
-              onClick={() => setIsCartOpen(true)}
+              onClick={handleOpenCart}
+              onPointerEnter={() => {
+                void loadCartDrawer()
+              }}
               className="relative p-2 text-muted-foreground hover:text-foreground transition-colors"
               aria-label="Åpne handlekurv"
             >
@@ -129,7 +176,7 @@ export default function Header() {
       
       {/* Cart Drawer */}
       {isCartOpen && (
-        <Suspense fallback={null}>
+        <Suspense fallback={<CartDrawerFallback />}>
           <CartDrawer />
         </Suspense>
       )}
