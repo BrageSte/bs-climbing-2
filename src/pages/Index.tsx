@@ -1,15 +1,17 @@
 import { lazy, Suspense, useEffect } from 'react'
 import Header from '@/components/Header'
 import ProductHero from '@/components/landing/ProductHero'
-import WhyCustom from '@/components/landing/WhyCustom'
-import HowItWorks from '@/components/landing/HowItWorks'
 
+const loadWhyCustom = () => import('@/components/landing/WhyCustom')
+const loadHowItWorks = () => import('@/components/landing/HowItWorks')
 const loadWhatYouGet = () => import('@/components/landing/WhatYouGet')
 const loadDelivery = () => import('@/components/landing/Delivery')
 const loadFAQ = () => import('@/components/landing/FAQ')
 const loadCTASection = () => import('@/components/landing/CTASection')
 const loadFooter = () => import('@/components/Footer')
 
+const WhyCustom = lazy(loadWhyCustom)
+const HowItWorks = lazy(loadHowItWorks)
 const WhatYouGet = lazy(loadWhatYouGet)
 const Delivery = lazy(loadDelivery)
 const FAQ = lazy(loadFAQ)
@@ -39,6 +41,8 @@ const FooterFallback = () => (
 export default function Index() {
   useEffect(() => {
     const prefetchSections = () => {
+      void loadWhyCustom()
+      void loadHowItWorks()
       void loadWhatYouGet()
       void loadDelivery()
       void loadFAQ()
@@ -72,8 +76,12 @@ export default function Index() {
       <Header />
       <main>
         <ProductHero />
-        <WhyCustom />
-        <HowItWorks />
+        <Suspense fallback={<SectionFallback label="fordeler" />}>
+          <WhyCustom />
+        </Suspense>
+        <Suspense fallback={<SectionFallback label="hvordan det fungerer" />}>
+          <HowItWorks />
+        </Suspense>
         <Suspense fallback={<SectionFallback label="formatseksjonen" />}>
           <WhatYouGet />
         </Suspense>

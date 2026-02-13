@@ -17,6 +17,13 @@
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:site" content="@BSClimbing" />
     <meta name="twitter:image" content="https://lovable.dev/opengraph-image-p98pqg.png" />
+
+    <!-- Preload critical fonts so they download in parallel with CSS/JS instead of after CSS parse -->
+    <link rel="preload" href="/fonts/inter-latin-400-normal.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="preload" href="/fonts/inter-latin-700-normal.woff2" as="font" type="font/woff2" crossorigin />
+
+    <!-- Inline critical style: prevents white flash before main CSS loads -->
+    <style>body{background:hsl(222,47%,6%);color:hsl(220,14%,90%);margin:0}</style>
   </head>
 
   <body>
