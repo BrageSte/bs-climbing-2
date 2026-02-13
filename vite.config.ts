@@ -1,7 +1,39 @@
-import { defineConfig } from "vite";
+import { defineConfig, type Plugin } from "vite";
 import react from "@vitejs/plugin-react-swc";
 import path from "path";
 import { componentTagger } from "lovable-tagger";
+
+/**
+ * Converts render-blocking <link rel="stylesheet"> tags into non-blocking
+ * preload patterns so the inline HTML skeleton can paint immediately.
+ *
+ * Before: <link rel="stylesheet" crossorigin href="/assets/index-xxx.css">
+ * After:  <link rel="preload" href="..." as="style" crossorigin onload="this.onload=null;this.rel='stylesheet'">
+ *         <noscript><link rel="stylesheet" href="..." crossorigin></noscript>
+ */
+function asyncCssPlugin(): Plugin {
+  return {
+    name: "vite-plugin-async-css",
+    enforce: "post",
+    apply: "build",
+    transformIndexHtml(html) {
+      return html.replace(
+        /<link rel="stylesheet"([^>]*?)>/g,
+        (_match, attrs: string) => {
+          const hrefMatch = attrs.match(/href="([^"]+)"/);
+          if (!hrefMatch) return _match;
+          const href = hrefMatch[1];
+          const otherAttrs = attrs.replace(/\s*href="[^"]+"\s*/, " ").trim();
+          const extras = otherAttrs ? ` ${otherAttrs}` : "";
+          return (
+            `<link rel="preload" href="${href}" as="style"${extras} onload="this.onload=null;this.rel='stylesheet'">\n` +
+            `    <noscript><link rel="stylesheet" href="${href}"${extras}></noscript>`
+          );
+        },
+      );
+    },
+  };
+}
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => ({
@@ -12,7 +44,7 @@ export default defineConfig(({ mode }) => ({
       overlay: false,
     },
   },
-  plugins: [react(), mode === "development" && componentTagger()].filter(Boolean),
+  plugins: [react(), asyncCssPlugin(), mode === "development" && componentTagger()].filter(Boolean),
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
