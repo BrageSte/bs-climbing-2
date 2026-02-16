@@ -260,6 +260,10 @@ function generateEmailHtml(order: OrderConfirmationRequest): string {
         <p style="margin: 12px 0 0 0; font-size: 14px; color: #888888;">Produksjonsnummer</p>
         <p style="margin: 4px 0 0 0; font-size: 18px; font-weight: 600; color: #ff6b35; font-family: monospace;">${escapeHtml(productionNumber)}</p>
         ` : ''}
+        ${order.orderStatusToken ? `
+        <p style="margin: 12px 0 0 0; font-size: 14px; color: #888888;">Sikkerhetskode</p>
+        <p style="margin: 4px 0 0 0; font-size: 14px; font-weight: 600; color: #ff6b35; font-family: monospace; word-break: break-all;">${escapeHtml(order.orderStatusToken)}</p>
+        ` : ''}
       </div>
       ${safeStatusUrl ? `
       <div style="margin-bottom: 24px;">
@@ -387,6 +391,7 @@ function generateEmailText(order: OrderConfirmationRequest): string {
     "Takk for bestillingen hos BS Climbing.",
     `Ordrenummer: ${order.orderId}`,
     productionNumber ? `Produksjonsnummer: ${productionNumber}` : "",
+    order.orderStatusToken ? `Sikkerhetskode: ${order.orderStatusToken}` : "",
     statusUrl ? `Sjekk ordrestatus: ${statusUrl}` : "",
     "",
     "Bestilte varer:",

@@ -78,10 +78,6 @@ function HoydeforskjellHelp() {
         Angi hvor mye neste finger er høyere enn den forrige.
       </p>
 
-      <p className="text-xs text-muted-foreground leading-relaxed">
-        Usikker? La standardverdiene stå.
-      </p>
-
       <img
         src="/images/measure-help/height-differences.jpg"
         alt="Illustrasjon av høydeforskjeller mellom fingrene"

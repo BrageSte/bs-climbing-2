@@ -46,7 +46,7 @@ export default function CrimpConfigurator() {
   const [heightDiffs, setHeightDiffs] = useState<HeightDiffs>({
     lilleToRing: 5,
     ringToLang: 5,
-    langToPeke: 3,
+    langToPeke: -3,
   });
 
   const lilleHeight = 10;
@@ -54,7 +54,7 @@ export default function CrimpConfigurator() {
   const calculatedHeights = useMemo(() => {
     const ring = lilleHeight + heightDiffs.lilleToRing;
     const lang = ring + heightDiffs.ringToLang;
-    const peke = lang - heightDiffs.langToPeke;
+    const peke = lang + heightDiffs.langToPeke;
     return {
       lillefinger: lilleHeight,
       ringfinger: ring,
@@ -146,7 +146,7 @@ export default function CrimpConfigurator() {
       id: productId,
       name:
         type === "file"
-          ? `Digital 3D-print-fil – Stepper ${blockVariant === "shortedge" ? "Compact" : "Long Edge"} (print selv)`
+          ? `3D-fil – ${blockVariant === "shortedge" ? "Compact" : "Long Edge"}`
           : `Ferdig printet – Stepper ${blockVariant === "shortedge" ? "Compact" : "Long Edge"}`,
       description: `Tilpasset crimp block: ${totalWidth.toFixed(1)}mm bred × ${depth}mm dyp`,
       price: type === "file" ? filePrice : currentPrice,
@@ -272,7 +272,7 @@ export default function CrimpConfigurator() {
               <MeasureHelpPopover section="fingerbredde" />
             </div>
             <p className="text-xs sm:text-sm text-muted-foreground mb-3 leading-relaxed">
-              Mål ytterst på fingerpaden. +2mm for komfort.
+              Mål på venstre hånd, ytterst på fingerpaden. +2mm for komfort.
             </p>
             <div className="grid grid-cols-4 gap-2 sm:gap-3">
               {(["Lille", "Ring", "Lang", "Peke"] as const).map((label, i) => {
@@ -303,7 +303,7 @@ export default function CrimpConfigurator() {
               <MeasureHelpPopover section="hoydeforskjell" />
             </div>
             <p className="text-xs sm:text-sm text-muted-foreground mb-3 leading-relaxed">
-              Justerer stegene for halvcrimpgrep. Usikker? La standard stå.
+              Mål på venstre hånd. Justerer stegene for halvcrimpgrep.
             </p>
             <div className="space-y-2 sm:space-y-3">
               {([
