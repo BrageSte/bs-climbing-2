@@ -556,7 +556,6 @@ serve(async (req) => {
         currency: "NOK",
         line_items: orderLineItems,
         config_snapshot: configSnapshot,
-        order_id: orderId,
         error_message: null,
       });
 
@@ -590,6 +589,19 @@ serve(async (req) => {
           .update({ status: "failed", error_message: "Failed creating order." })
           .eq("id", checkoutRef);
         return errorResponse("INTERNAL_ERROR", "Could not create order.", 500);
+      }
+
+      const { error: linkOrderError } = await supabaseAdmin
+        .from("checkout_sessions")
+        .update({ order_id: orderId, error_message: null })
+        .eq("id", checkoutRef);
+
+      if (linkOrderError) {
+        console.error("[create-checkout] Failed linking free checkout session to order", {
+          checkoutRef,
+          orderId,
+          linkOrderError,
+        });
       }
 
       const emailOk = await sendOrderConfirmationEmail(supabaseUrl, supabaseServiceRoleKey, orderId);
