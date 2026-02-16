@@ -36,6 +36,10 @@ export default function MeasureHelpModal({ open, onOpenChange }: MeasureHelpModa
             <ul className="text-sm text-foreground space-y-2">
               <li className="flex items-start gap-2">
                 <span className="text-amber-500 mt-0.5">•</span>
+                <span>Mål på <strong>venstre hånd</strong> (ikke høyre).</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="text-amber-500 mt-0.5">•</span>
                 <span>Bruk <strong>skyvelære</strong> for best presisjon. Funker bra med linjal/tommestokk.</span>
               </li>
               <li className="flex items-start gap-2">
