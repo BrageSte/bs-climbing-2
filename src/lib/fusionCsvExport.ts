@@ -152,6 +152,14 @@ async function resolveProductionAssignment(
   orderId: string,
   fallbackProductionNumber?: number | null
 ): Promise<ProductionAssignment> {
+  const fallback = normalizeProductionNumber(fallbackProductionNumber)
+  if (fallback !== null) {
+    return {
+      productionNumber: fallback,
+      modellId: formatModelId(fallback),
+    }
+  }
+
   if (!supabase) {
     throw new Error('Supabase er ikke konfigurert. Kan ikke tildele produksjonsnummer i denne hosten.')
   }
@@ -161,11 +169,16 @@ async function resolveProductionAssignment(
 
   const productionNumber = normalizeProductionNumber(data?.[0]?.production_number)
   if (error || productionNumber === null) {
-    const fallback = normalizeProductionNumber(fallbackProductionNumber)
-    if (fallback !== null) {
+    if (isAfterTriggerOutsideQueryError(error?.message)) {
+      const temporaryModelId = formatTemporaryModelId(orderId)
+      console.warn('[fusion-csv] assign_production_number failed with trigger error. Using temporary model id.', {
+        orderId,
+        error: error?.message,
+        temporaryModelId
+      })
       return {
-        productionNumber: fallback,
-        modellId: formatModelId(fallback),
+        productionNumber: Number.MAX_SAFE_INTEGER,
+        modellId: temporaryModelId,
       }
     }
     throw new Error(error?.message ?? 'Kunne ikke tildele produksjonsnummer.')
@@ -190,6 +203,14 @@ function normalizeProductionNumber(value: unknown): number | null {
 
 function formatModelId(productionNumber: number): string {
   return `BS-${productionNumber.toString().padStart(4, '0')}`
+}
+
+function formatTemporaryModelId(orderId: string): string {
+  return `BS-TMP-${orderId.slice(0, 8).toUpperCase()}`
+}
+
+function isAfterTriggerOutsideQueryError(message: string | undefined): boolean {
+  return Boolean(message && message.includes('AfterTriggerSaveEvent() called outside of query'))
 }
 
 function resolveEdgeMode(variant: unknown): number {
