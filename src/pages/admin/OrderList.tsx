@@ -115,9 +115,23 @@ export default function OrderList() {
       .map(order => {
         const config = getConfigSnapshot(order)
         const item = config?.items?.[0]
-        return item ? { item, orderId: order.id, fallbackProductionNumber: order.production_number } : null
+        return item
+          ? {
+              item,
+              orderId: order.id,
+              customerName: order.customer_name,
+              customerEmail: order.customer_email,
+              fallbackProductionNumber: order.production_number,
+            }
+          : null
       })
-      .filter((o): o is { item: ConfigSnapshot['items'][0]; orderId: string; fallbackProductionNumber: number | null } => o !== null)
+      .filter((o): o is {
+        item: ConfigSnapshot['items'][0]
+        orderId: string
+        customerName: string
+        customerEmail: string
+        fallbackProductionNumber: number | null
+      } => o !== null)
 
     if (ordersToDownload.length === 0) {
       toast({ title: 'Ingen ordre å eksportere', description: 'Velg minst én ordre med konfigurasjon.' })
@@ -303,9 +317,15 @@ export default function OrderList() {
                               onClick={async (e) => {
                                 e.preventDefault()
                                 try {
-                                  await downloadFusionParameterCSV(item, order.id, {
-                                    fallbackProductionNumber: order.production_number
-                                  })
+                                  await downloadFusionParameterCSV(
+                                    item,
+                                    order.id,
+                                    order.customer_name,
+                                    order.customer_email,
+                                    {
+                                      fallbackProductionNumber: order.production_number
+                                    }
+                                  )
                                 } catch (error) {
                                   toast({
                                     title: 'Eksport feilet',

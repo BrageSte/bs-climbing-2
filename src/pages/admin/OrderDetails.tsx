@@ -89,7 +89,7 @@ export default function OrderDetails() {
   const handleExport = async (item: ConfigSnapshot['items'][0]) => {
     if (!order) return
     try {
-      await downloadFusionParameterCSV(item, order.id, {
+      await downloadFusionParameterCSV(item, order.id, order.customer_name, order.customer_email, {
         fallbackProductionNumber: order.production_number
       })
     } catch (error) {

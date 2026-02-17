@@ -18,6 +18,8 @@ type DownloadOptions = {
 export async function downloadFusionParameterCSV(
   item: ConfigSnapshotItem,
   orderId: string,
+  customerName: string,
+  customerEmail: string,
   options?: DownloadOptions
 ): Promise<void> {
   const resolvedAssignment = options?.assignment
@@ -40,7 +42,8 @@ export async function downloadFusionParameterCSV(
   ]
 
   const csv = [header, ...rows].join('\n')
-  downloadCSV(csv, `ExportedParameters_order_${orderId.slice(0, 8)}.csv`)
+  const filename = buildFusionCsvFilename(customerName, customerEmail, resolvedAssignment.modellId, orderId)
+  downloadCSV(csv, filename)
 }
 
 function formatRow(name: string, value: number): string {
@@ -72,25 +75,77 @@ function downloadCSV(content: string, filename: string): void {
  * Downloads multiple Fusion 360 parameter CSVs with a small delay between each.
  */
 export async function downloadMultipleFusionCSVs(
-  orders: Array<{ item: ConfigSnapshotItem; orderId: string; fallbackProductionNumber?: number | null }>
+  orders: Array<{
+    item: ConfigSnapshotItem
+    orderId: string
+    customerName: string
+    customerEmail: string
+    fallbackProductionNumber?: number | null
+  }>
 ): Promise<void> {
-  const assigned: Array<{ item: ConfigSnapshotItem; orderId: string } & ProductionAssignment> = []
+  const assigned: Array<{
+    item: ConfigSnapshotItem
+    orderId: string
+    customerName: string
+    customerEmail: string
+  } & ProductionAssignment> = []
 
   for (const order of orders) {
     const assignment = await resolveProductionAssignment(order.orderId, order.fallbackProductionNumber)
-    assigned.push({ item: order.item, orderId: order.orderId, ...assignment })
+    assigned.push({
+      item: order.item,
+      orderId: order.orderId,
+      customerName: order.customerName,
+      customerEmail: order.customerEmail,
+      ...assignment,
+    })
   }
 
   assigned.sort((a, b) => a.productionNumber - b.productionNumber)
 
   for (let i = 0; i < assigned.length; i++) {
-    const { item, orderId, productionNumber, modellId } = assigned[i]
-    await downloadFusionParameterCSV(item, orderId, { assignment: { productionNumber, modellId } })
+    const { item, orderId, customerName, customerEmail, productionNumber, modellId } = assigned[i]
+    await downloadFusionParameterCSV(item, orderId, customerName, customerEmail, {
+      assignment: { productionNumber, modellId }
+    })
     // Small delay between downloads to avoid browser blocking
     if (i < assigned.length - 1) {
       await new Promise(resolve => setTimeout(resolve, 200))
     }
   }
+}
+
+export function toSafeSlug(value: string): string {
+  const slug = value
+    .trim()
+    .toLowerCase()
+    .replaceAll('æ', 'ae')
+    .replaceAll('ø', 'o')
+    .replaceAll('å', 'a')
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replaceAll('@', '-at-')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-+|-+$/g, '')
+
+  return slug || 'ukjent'
+}
+
+export function buildOrderConfirmationCode(orderId: string): string {
+  return `ORDER${orderId.slice(0, 8).toUpperCase()}`
+}
+
+export function buildFusionCsvFilename(
+  customerName: string,
+  customerEmail: string,
+  modellId: string,
+  orderId: string
+): string {
+  const nameSlug = toSafeSlug(customerName)
+  const emailSlug = toSafeSlug(customerEmail)
+  const orderCode = buildOrderConfirmationCode(orderId)
+  return `${nameSlug}-${emailSlug}_${modellId}_${orderCode}.csv`
 }
 
 async function resolveProductionAssignment(
