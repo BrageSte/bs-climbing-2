@@ -1,11 +1,15 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Download } from "lucide-react";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
+import BlockViewer from "@/components/configurator/BlockViewer";
 import ParametricBlockPreview from "@/components/configurator/ParametricBlockPreview";
 import type { BlockVariant } from "@/components/configurator/StlViewer";
+import { generateBlockMesh } from "@/lib/generateBlockMesh";
+import { exportGeometryAsSTL } from "@/lib/stlExporter";
 import { NumberStepper } from "@/components/ui/number-stepper";
+import type * as THREE from "three";
 
 export default function TestConfigurator() {
   const [blockVariant, setBlockVariant] = useState<BlockVariant>("shortedge");
@@ -24,7 +28,7 @@ export default function TestConfigurator() {
   });
 
   const lilleHeight = 10;
-  const depth = 20;
+  const depth = 24;
 
   const calculatedHeights = useMemo(() => {
     const ring = lilleHeight + heightDiffs.lilleToRing;
@@ -38,32 +42,74 @@ export default function TestConfigurator() {
     };
   }, [heightDiffs]);
 
+  const edgeMode = blockVariant === "longedge" ? 1 : 0;
+
+  // Debounced parametric geometry generation (client-side, no network)
+  const [blockGeometry, setBlockGeometry] = useState<THREE.BufferGeometry | null>(null);
+  const geoRef = useRef<THREE.BufferGeometry | null>(null);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      const geo = generateBlockMesh({
+        edgeMode: edgeMode as 0 | 1,
+        widths: [widths.lillefinger, widths.ringfinger, widths.langfinger, widths.pekefinger],
+        heights: [
+          calculatedHeights.lillefinger,
+          calculatedHeights.ringfinger,
+          calculatedHeights.langfinger,
+          calculatedHeights.pekefinger,
+        ],
+        depth,
+      });
+      // Dispose previous geometry
+      const prev = geoRef.current;
+      if (prev) {
+        (prev.userData?.edgeGeometry as THREE.BufferGeometry | undefined)?.dispose();
+        prev.dispose();
+      }
+      geoRef.current = geo;
+      setBlockGeometry(geo);
+    }, 200);
+    return () => clearTimeout(timer);
+  }, [blockVariant, widths, calculatedHeights, depth, edgeMode]);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      const geo = geoRef.current;
+      if (geo) {
+        (geo.userData?.edgeGeometry as THREE.BufferGeometry | undefined)?.dispose();
+        geo.dispose();
+      }
+    };
+  }, []);
+
   return (
     <>
       <Header />
       <main className="min-h-screen bg-background pt-20">
-        <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+        <div className="mx-auto max-w-3xl px-4 py-12 sm:px-6 lg:px-8">
           <Link
             to="/configure"
-            className="inline-flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors mb-8"
+            className="mb-8 inline-flex items-center gap-2 text-muted-foreground transition-colors hover:text-foreground"
           >
-            <ArrowLeft className="w-4 h-4" />
+            <ArrowLeft className="h-4 w-4" />
             <span className="text-sm">Tilbake til konfigurator</span>
           </Link>
 
           <div className="mb-8">
-            <h1 className="text-2xl font-bold tracking-tight mb-2">
+            <h1 className="mb-2 text-2xl font-bold tracking-tight">
               Test: Ny STL-konfigurator
             </h1>
             <p className="text-sm text-muted-foreground">
-              Parametrisk 3D-forhåndsvisning med trappet profil og avrundede kanter.
+              Fusion-lik 3D-forhåndsvisning med kanter, snitt og x-ray.
             </p>
           </div>
 
           <div className="space-y-6">
             {/* Variant toggle */}
-            <section className="bg-card border border-border rounded-xl p-4">
-              <h2 className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-3">
+            <section className="rounded-xl border border-border bg-card p-4">
+              <h2 className="mb-3 text-xs font-medium uppercase tracking-wider text-muted-foreground">
                 Blokktype
               </h2>
               <div className="flex gap-2">
@@ -71,7 +117,7 @@ export default function TestConfigurator() {
                   <button
                     key={v}
                     onClick={() => setBlockVariant(v)}
-                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                    className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
                       blockVariant === v
                         ? "bg-primary text-primary-foreground"
                         : "bg-surface-light text-muted-foreground hover:text-foreground"
@@ -84,8 +130,8 @@ export default function TestConfigurator() {
             </section>
 
             {/* Finger widths */}
-            <section className="bg-card border border-border rounded-xl p-4">
-              <h2 className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-3">
+            <section className="rounded-xl border border-border bg-card p-4">
+              <h2 className="mb-3 text-xs font-medium uppercase tracking-wider text-muted-foreground">
                 Fingerbredde (mm)
               </h2>
               <div className="grid grid-cols-4 gap-2">
@@ -93,7 +139,7 @@ export default function TestConfigurator() {
                   const finger = (["lillefinger", "ringfinger", "langfinger", "pekefinger"] as const)[i];
                   return (
                     <div key={finger} className="flex flex-col items-center">
-                      <label className="text-xs font-medium text-muted-foreground mb-1.5">{label}</label>
+                      <label className="mb-1.5 text-xs font-medium text-muted-foreground">{label}</label>
                       <NumberStepper
                         value={widths[finger]}
                         onChange={(val) => setWidths((prev) => ({ ...prev, [finger]: val }))}
@@ -109,8 +155,8 @@ export default function TestConfigurator() {
             </section>
 
             {/* Height diffs */}
-            <section className="bg-card border border-border rounded-xl p-4">
-              <h2 className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-3">
+            <section className="rounded-xl border border-border bg-card p-4">
+              <h2 className="mb-3 text-xs font-medium uppercase tracking-wider text-muted-foreground">
                 Høydeforskjell (mm)
               </h2>
               <div className="space-y-2">
@@ -120,31 +166,73 @@ export default function TestConfigurator() {
                   { key: "langToPeke" as const, label: "Lang \u2192 Peke", badge: "C", resultFinger: "pekefinger" as const },
                 ]).map(({ key, label, badge, resultFinger }) => (
                   <div key={key} className="flex items-center gap-2">
-                    <span className="w-5 h-5 bg-primary/20 border border-primary/40 rounded text-primary text-[10px] flex items-center justify-center font-semibold shrink-0">
+                    <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded border border-primary/40 bg-primary/20 text-[10px] font-semibold text-primary">
                       {badge}
                     </span>
-                    <span className="text-foreground text-xs shrink-0">{label}</span>
+                    <span className="shrink-0 text-xs text-foreground">{label}</span>
                     <NumberStepper
                       value={heightDiffs[key]}
                       onChange={(val) => setHeightDiffs((prev) => ({ ...prev, [key]: val }))}
                       min={-40}
                       max={40}
                       size="sm"
-                      className="flex-1 min-w-0"
+                      className="min-w-0 flex-1"
                     />
-                    <span className="text-muted-foreground text-xs w-12 text-right font-mono shrink-0">
+                    <span className="w-12 shrink-0 text-right font-mono text-xs text-muted-foreground">
                       {calculatedHeights[resultFinger]}mm
                     </span>
                   </div>
                 ))}
               </div>
-              <p className="text-[10px] text-muted-foreground mt-2 opacity-75">Lillefinger: fast 10mm</p>
+              <p className="mt-2 text-[10px] text-muted-foreground opacity-75">Lillefinger: fast 10mm</p>
             </section>
 
-            {/* 3D Preview */}
-            <section className="bg-card border border-border rounded-xl p-4">
-              <h2 className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-3">
-                Forhåndsvisning
+            {/* ── Parametric 3D Viewer (Fusion-stil) ────────────────── */}
+            <section className="rounded-xl border border-border bg-card p-4">
+              <h2 className="mb-3 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                Live 3D Parametrisk Viewer
+              </h2>
+
+              {blockGeometry ? (
+                <BlockViewer
+                  geometry={blockGeometry}
+                  variant={blockVariant === "shortedge" ? "compact" : "long"}
+                  configData={{
+                    widths,
+                    heights: calculatedHeights,
+                    edgeMode,
+                    depth,
+                  }}
+                />
+              ) : (
+                <div className="flex h-[400px] items-center justify-center rounded-xl bg-muted/30">
+                  <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary/20 border-t-primary" />
+                </div>
+              )}
+
+              <div className="mt-3 flex items-center justify-between">
+                <p className="text-[10px] text-muted-foreground opacity-75">
+                  Geometri bygges fra parametre — oppdateres live
+                </p>
+                {blockGeometry && (
+                  <button
+                    onClick={() => {
+                      const variant = blockVariant === "shortedge" ? "compact" : "longedge";
+                      exportGeometryAsSTL(blockGeometry, `crimp-block-${variant}.stl`);
+                    }}
+                    className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-primary/10 hover:text-foreground"
+                  >
+                    <Download className="h-3.5 w-3.5" />
+                    Last ned STL
+                  </button>
+                )}
+              </div>
+            </section>
+
+            {/* ── Parametric Preview (sammenligning) ────────────────── */}
+            <section className="rounded-xl border border-border bg-card p-4">
+              <h2 className="mb-3 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                Parametrisk forhåndsvisning (sammenligning)
               </h2>
               <ParametricBlockPreview
                 widths={widths}
@@ -152,7 +240,7 @@ export default function TestConfigurator() {
                 depth={depth}
                 blockVariant={blockVariant}
               />
-              <p className="text-[10px] text-muted-foreground text-center mt-2 opacity-75">
+              <p className="mt-2 text-center text-[10px] text-muted-foreground opacity-75">
                 Roter/zoom for å se fra ulike vinkler
               </p>
             </section>
