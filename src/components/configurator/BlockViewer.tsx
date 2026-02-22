@@ -31,10 +31,12 @@ import { Slider } from "@/components/ui/slider";
 // ---------------------------------------------------------------------------
 
 export interface BlockViewerProps {
-  /** URL to STL file. Static path or dynamic backend URL. */
-  modelUrl: string;
+  /** URL to STL file. Either modelUrl or geometry must be provided. */
+  modelUrl?: string;
+  /** Direct BufferGeometry for parametric/live mode (no network). */
+  geometry?: THREE.BufferGeometry;
   format?: "stl";
-  variant: "compact" | "long";
+  variant?: "compact" | "long";
   /** Read-only overlay data – does NOT trigger STL reload. */
   configData?: {
     widths: {
@@ -265,6 +267,111 @@ function BlockModel({
 }
 
 // ---------------------------------------------------------------------------
+// Parametric model (direct geometry, no loading)
+// ---------------------------------------------------------------------------
+
+function ParametricModel({
+  geometry,
+  showEdges,
+  xray,
+  clipEnabled,
+  clipValue,
+  onModelReady,
+  onLoadState,
+}: {
+  geometry: THREE.BufferGeometry;
+  showEdges: boolean;
+  xray: boolean;
+  clipEnabled: boolean;
+  clipValue: number;
+  onModelReady: (m: ProcessedModel) => void;
+  onLoadState: (s: LoadState) => void;
+}) {
+  const edgeGeo = (geometry.userData?.edgeGeometry as THREE.BufferGeometry) ?? null;
+  const prevGeoRef = useRef<THREE.BufferGeometry | null>(null);
+
+  const clipPlane = useMemo(
+    () => new THREE.Plane(new THREE.Vector3(0, -1, 0), 0),
+    [],
+  );
+
+  // Signal model ready whenever geometry changes
+  useEffect(() => {
+    if (!geometry) return;
+    // Only recompute if geometry actually changed
+    if (prevGeoRef.current === geometry) return;
+    prevGeoRef.current = geometry;
+
+    geometry.computeBoundingBox();
+    geometry.computeBoundingSphere();
+
+    const model: ProcessedModel = {
+      geometry,
+      edgeGeometry: edgeGeo ?? new THREE.EdgesGeometry(geometry, 30),
+      boundingSphere: geometry.boundingSphere!,
+      boundingBox: geometry.boundingBox!,
+    };
+    onModelReady(model);
+    onLoadState("loaded");
+  }, [geometry]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Update clip constant from slider
+  useEffect(() => {
+    if (!geometry.boundingBox) return;
+    const bb = geometry.boundingBox;
+    clipPlane.constant = bb.max.y - (clipValue / 100) * (bb.max.y - bb.min.y);
+  }, [clipValue, geometry, clipPlane]);
+
+  // Mesh material
+  const meshMat = useMemo(
+    () =>
+      new THREE.MeshStandardMaterial({
+        color: "#9ca3af",
+        roughness: 0.45,
+        metalness: 0.05,
+        side: THREE.DoubleSide,
+      }),
+    [],
+  );
+
+  useEffect(() => {
+    meshMat.transparent = xray;
+    meshMat.opacity = xray ? 0.35 : 1.0;
+    meshMat.depthWrite = !xray;
+    meshMat.needsUpdate = true;
+  }, [xray, meshMat]);
+
+  useEffect(() => {
+    meshMat.clippingPlanes = clipEnabled ? [clipPlane] : [];
+    meshMat.needsUpdate = true;
+  }, [clipEnabled, clipPlane, meshMat]);
+
+  useEffect(() => () => meshMat.dispose(), [meshMat]);
+
+  // Edge material
+  const edgeMat = useMemo(
+    () => new THREE.LineBasicMaterial({ color: "#1e293b" }),
+    [],
+  );
+
+  useEffect(() => {
+    edgeMat.clippingPlanes = clipEnabled ? [clipPlane] : [];
+    edgeMat.needsUpdate = true;
+  }, [clipEnabled, clipPlane, edgeMat]);
+
+  useEffect(() => () => edgeMat.dispose(), [edgeMat]);
+
+  return (
+    <group>
+      <mesh geometry={geometry} material={meshMat} castShadow receiveShadow />
+      {showEdges && edgeGeo && (
+        <lineSegments geometry={edgeGeo} material={edgeMat} />
+      )}
+    </group>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Camera presets
 // ---------------------------------------------------------------------------
 
@@ -419,6 +526,7 @@ const CanvasFallback = () => (
 
 export default function BlockViewer({
   modelUrl,
+  geometry,
   configData,
   loadingText,
   className,
@@ -477,15 +585,27 @@ export default function BlockViewer({
           <ClipController enabled={clipEnabled} />
           <SceneLighting />
 
-          <BlockModel
-            url={modelUrl}
-            showEdges={showEdges}
-            xray={xray}
-            clipEnabled={clipEnabled}
-            clipValue={clipValue}
-            onModelReady={handleModelReady}
-            onLoadState={setLoadState}
-          />
+          {geometry ? (
+            <ParametricModel
+              geometry={geometry}
+              showEdges={showEdges}
+              xray={xray}
+              clipEnabled={clipEnabled}
+              clipValue={clipValue}
+              onModelReady={handleModelReady}
+              onLoadState={setLoadState}
+            />
+          ) : modelUrl ? (
+            <BlockModel
+              url={modelUrl}
+              showEdges={showEdges}
+              xray={xray}
+              clipEnabled={clipEnabled}
+              clipValue={clipValue}
+              onModelReady={handleModelReady}
+              onLoadState={setLoadState}
+            />
+          ) : null}
 
           <ShadowPlane bottomZ={-50} />
         </Canvas>

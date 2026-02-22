@@ -1,13 +1,15 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Download } from "lucide-react";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import BlockViewer from "@/components/configurator/BlockViewer";
 import ParametricBlockPreview from "@/components/configurator/ParametricBlockPreview";
 import type { BlockVariant } from "@/components/configurator/StlViewer";
-import { usePreviewModel } from "@/hooks/usePreviewModel";
+import { generateBlockMesh } from "@/lib/generateBlockMesh";
+import { exportGeometryAsSTL } from "@/lib/stlExporter";
 import { NumberStepper } from "@/components/ui/number-stepper";
+import type * as THREE from "three";
 
 export default function TestConfigurator() {
   const [blockVariant, setBlockVariant] = useState<BlockVariant>("shortedge");
@@ -40,13 +42,47 @@ export default function TestConfigurator() {
     };
   }, [heightDiffs]);
 
-  // Debounced preview model hook — resolves STL URL from params
   const edgeMode = blockVariant === "longedge" ? 1 : 0;
-  const previewParams = useMemo(
-    () => ({ widths, heights: calculatedHeights, depth, edgeMode }),
-    [widths, calculatedHeights, depth, edgeMode],
-  );
-  const { modelUrl, isGenerating, error: previewError, hash } = usePreviewModel(previewParams);
+
+  // Debounced parametric geometry generation (client-side, no network)
+  const [blockGeometry, setBlockGeometry] = useState<THREE.BufferGeometry | null>(null);
+  const geoRef = useRef<THREE.BufferGeometry | null>(null);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      const geo = generateBlockMesh({
+        edgeMode: edgeMode as 0 | 1,
+        widths: [widths.lillefinger, widths.ringfinger, widths.langfinger, widths.pekefinger],
+        heights: [
+          calculatedHeights.lillefinger,
+          calculatedHeights.ringfinger,
+          calculatedHeights.langfinger,
+          calculatedHeights.pekefinger,
+        ],
+        depth,
+      });
+      // Dispose previous geometry
+      const prev = geoRef.current;
+      if (prev) {
+        (prev.userData?.edgeGeometry as THREE.BufferGeometry | undefined)?.dispose();
+        prev.dispose();
+      }
+      geoRef.current = geo;
+      setBlockGeometry(geo);
+    }, 200);
+    return () => clearTimeout(timer);
+  }, [blockVariant, widths, calculatedHeights, depth, edgeMode]);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      const geo = geoRef.current;
+      if (geo) {
+        (geo.userData?.edgeGeometry as THREE.BufferGeometry | undefined)?.dispose();
+        geo.dispose();
+      }
+    };
+  }, []);
 
   return (
     <>
@@ -151,41 +187,46 @@ export default function TestConfigurator() {
               <p className="mt-2 text-[10px] text-muted-foreground opacity-75">Lillefinger: fast 10mm</p>
             </section>
 
-            {/* ── STL Block Viewer (Fusion-stil) ────────────────────── */}
+            {/* ── Parametric 3D Viewer (Fusion-stil) ────────────────── */}
             <section className="rounded-xl border border-border bg-card p-4">
-              <div className="mb-3 flex items-center gap-2">
-                <h2 className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                  3D STL Viewer
-                </h2>
-                {isGenerating && (
-                  <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-medium text-primary">
-                    <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-primary" />
-                    Oppdaterer 3D…
-                  </span>
-                )}
-                {previewError && (
-                  <span className="text-[10px] text-destructive">
-                    Feil: {previewError}
-                  </span>
+              <h2 className="mb-3 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                Live 3D Parametrisk Viewer
+              </h2>
+
+              {blockGeometry ? (
+                <BlockViewer
+                  geometry={blockGeometry}
+                  variant={blockVariant === "shortedge" ? "compact" : "long"}
+                  configData={{
+                    widths,
+                    heights: calculatedHeights,
+                    edgeMode,
+                    depth,
+                  }}
+                />
+              ) : (
+                <div className="flex h-[400px] items-center justify-center rounded-xl bg-muted/30">
+                  <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary/20 border-t-primary" />
+                </div>
+              )}
+
+              <div className="mt-3 flex items-center justify-between">
+                <p className="text-[10px] text-muted-foreground opacity-75">
+                  Geometri bygges fra parametre — oppdateres live
+                </p>
+                {blockGeometry && (
+                  <button
+                    onClick={() => {
+                      const variant = blockVariant === "shortedge" ? "compact" : "longedge";
+                      exportGeometryAsSTL(blockGeometry, `crimp-block-${variant}.stl`);
+                    }}
+                    className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-primary/10 hover:text-foreground"
+                  >
+                    <Download className="h-3.5 w-3.5" />
+                    Last ned STL
+                  </button>
                 )}
               </div>
-
-              <BlockViewer
-                modelUrl={modelUrl}
-                variant={blockVariant === "shortedge" ? "compact" : "long"}
-                loadingText={isGenerating ? "Oppdaterer 3D\u2026" : undefined}
-                configData={{
-                  widths,
-                  heights: calculatedHeights,
-                  edgeMode,
-                  depth,
-                  modelId: hash?.slice(0, 8),
-                }}
-              />
-
-              <p className="mt-2 text-center text-[10px] text-muted-foreground opacity-75">
-                Roter / zoom / kamera-presets i toolbar under vieweren
-              </p>
             </section>
 
             {/* ── Parametric Preview (sammenligning) ────────────────── */}
