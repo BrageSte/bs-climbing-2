@@ -21,21 +21,16 @@
  */
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
+import { serveCors } from "../_shared/cors.ts";
 
 // ---------------------------------------------------------------------------
-// CORS
+// Helpers
 // ---------------------------------------------------------------------------
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type",
-};
 
 function json(payload: unknown, status = 200): Response {
   return new Response(JSON.stringify(payload), {
     status,
-    headers: { "Content-Type": "application/json", ...corsHeaders },
+    headers: { "Content-Type": "application/json" },
   });
 }
 
@@ -128,11 +123,7 @@ async function _generateStl(
 // Handler
 // ---------------------------------------------------------------------------
 
-serve(async (req) => {
-  if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
-  }
-
+serve(serveCors(async (req) => {
   if (req.method !== "POST") {
     return json({ error: "Method not allowed" }, 405);
   }
@@ -201,4 +192,4 @@ serve(async (req) => {
     console.error("[preview-model] unexpected error:", err);
     return json({ error: "Internal error." }, 500);
   }
-});
+}));

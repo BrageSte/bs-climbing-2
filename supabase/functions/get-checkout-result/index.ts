@@ -1,15 +1,10 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
-};
+import { serveCors } from "../_shared/cors.ts";
 
 function jsonResponse(payload: unknown, status = 200): Response {
   return new Response(JSON.stringify(payload), {
-    headers: { ...corsHeaders, "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json" },
     status,
   });
 }
@@ -18,11 +13,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
 
-serve(async (req) => {
-  if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
-  }
-
+serve(serveCors(async (req) => {
   const supabaseUrl = Deno.env.get("SUPABASE_URL");
   const supabaseServiceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 
@@ -55,7 +46,13 @@ serve(async (req) => {
 
     const { data: checkoutSession, error: checkoutError } = await supabaseAdmin
       .from("checkout_sessions")
-      .select("*")
+      .select(
+        "id, status, order_id, customer_name, customer_email, customer_phone, " +
+        "delivery_method, pickup_location, shipping_address, " +
+        "line_items, config_snapshot, " +
+        "subtotal_amount, shipping_amount, total_amount, currency, " +
+        "promo_code, promo_discount_amount"
+      )
       .eq("stripe_checkout_session_id", sessionId)
       .maybeSingle();
 
@@ -107,7 +104,13 @@ serve(async (req) => {
 
     const { data: order, error: orderError } = await supabaseAdmin
       .from("orders")
-      .select("*")
+      .select(
+        "id, created_at, status, customer_name, customer_email, customer_phone, " +
+        "delivery_method, pickup_location, shipping_address, " +
+        "line_items, config_snapshot, " +
+        "subtotal_amount, shipping_amount, total_amount, currency, " +
+        "stripe_checkout_session_id, production_number"
+      )
       .eq("id", checkoutSession.order_id)
       .maybeSingle();
 
@@ -151,4 +154,4 @@ serve(async (req) => {
       500
     );
   }
-});
+}));
