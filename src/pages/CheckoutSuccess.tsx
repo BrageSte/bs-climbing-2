@@ -240,20 +240,6 @@ export default function CheckoutSuccess() {
           return;
         }
 
-        if (sessionId.startsWith("mock_")) {
-          const stored = sessionStorage.getItem("bs-climbing-pending-order");
-          if (stored) {
-            const pendingOrder = JSON.parse(stored) as Order;
-            sessionStorage.removeItem("bs-climbing-pending-order");
-            if (isActive) {
-              setOrder(pendingOrder);
-              setLoading(false);
-            }
-            clearCart();
-            return;
-          }
-        }
-
         const sb = supabase;
         if (!sb) {
           if (isActive) {
@@ -265,11 +251,13 @@ export default function CheckoutSuccess() {
           return;
         }
 
+        const checkoutToken = sessionStorage.getItem(`bs-checkout-token-${sessionId}`) ?? "";
+
         const start = Date.now();
         while (isActive && Date.now() - start < POLL_TIMEOUT_MS) {
           const { data, error: resultError } = await sb.functions.invoke<CheckoutResultResponse>(
             "get-checkout-result",
-            { body: { sessionId } }
+            { body: { sessionId }, headers: { "x-checkout-token": checkoutToken } }
           );
 
           if (resultError) {

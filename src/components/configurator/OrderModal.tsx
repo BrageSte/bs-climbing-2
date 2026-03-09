@@ -80,7 +80,7 @@ Beregnet totalbredde: ${totalWidth.toFixed(1)}mm
 Sendt fra Crimp Block Configurator
     `.trim())
 
-    window.location.href = `mailto:din@epost.no?subject=${subject}&body=${body}`
+    window.location.href = `mailto:post@bsclimbing.no?subject=${subject}&body=${body}`
     onComplete()
   }
 

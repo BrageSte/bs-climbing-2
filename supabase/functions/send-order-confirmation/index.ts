@@ -553,7 +553,7 @@ const handler = async (req: Request): Promise<Response> => {
       text: emailText,
     });
 
-    console.log("Order confirmation email sent successfully:", emailResponse);
+    console.info("[send-order-confirmation] email sent", { id: emailResponse?.id });
 
     return jsonResponse({ success: true }, 200);
   } catch (error: unknown) {

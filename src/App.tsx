@@ -59,22 +59,25 @@ const ConfigureRouteFallback = () => (
 function RuntimeErrorLogger() {
   useEffect(() => {
     const onError = (event: ErrorEvent) => {
-      console.error("[runtime-error]", {
-        message: event.message,
-        filename: event.filename,
-        line: event.lineno,
-        column: event.colno,
-        stack: event.error instanceof Error ? event.error.stack : null,
-      });
+      if (import.meta.env.DEV) {
+        console.error("[runtime-error]", {
+          message: event.message,
+          filename: event.filename,
+          line: event.lineno,
+          column: event.colno,
+          stack: event.error instanceof Error ? event.error.stack : null,
+        });
+      }
     };
 
     const onUnhandledRejection = (event: PromiseRejectionEvent) => {
-      const reason =
-        event.reason instanceof Error
-          ? { message: event.reason.message, stack: event.reason.stack }
-          : event.reason;
-
-      console.error("[unhandled-rejection]", reason);
+      if (import.meta.env.DEV) {
+        const reason =
+          event.reason instanceof Error
+            ? { message: event.reason.message, stack: event.reason.stack }
+            : event.reason;
+        console.error("[unhandled-rejection]", reason);
+      }
     };
 
     window.addEventListener("error", onError);
@@ -143,7 +146,7 @@ const App = () => (
             <Route path="/admin/orders/:orderId" element={<ProtectedRoute><OrderDetails /></ProtectedRoute>} />
             <Route path="/admin/products" element={<ProtectedRoute><AdminProducts /></ProtectedRoute>} />
 
-            <Route path="/test-configurator" element={<TestConfigurator />} />
+            {import.meta.env.DEV && <Route path="/test-configurator" element={<TestConfigurator />} />}
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>
