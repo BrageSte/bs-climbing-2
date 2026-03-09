@@ -49,15 +49,15 @@ function resolveOrigin(origin: string | null): string | null {
     return null;
   }
 
-  // Fallback: no PUBLIC_SITE_URL configured — echo back origin (permissive).
+  // Fallback: no PUBLIC_SITE_URL configured — block all cross-origin requests.
   if (!warnedMissing) {
-    console.warn(
-      "[cors] PUBLIC_SITE_URL not set — CORS is permissive. " +
-        "Set PUBLIC_SITE_URL to restrict allowed origins.",
+    console.error(
+      "[cors] PUBLIC_SITE_URL not set — CORS is BLOCKED for all origins. " +
+        "Set PUBLIC_SITE_URL in Supabase secrets to allow your site.",
     );
     warnedMissing = true;
   }
-  return origin;
+  return null;
 }
 
 /**

@@ -303,6 +303,12 @@ export default function Checkout() {
         throw new Error(errorMessage)
       }
 
+      // Persist the checkout token so CheckoutSuccess can authenticate the
+      // get-checkout-result call after the Stripe redirect returns.
+      if (data.checkoutToken && data.sessionId) {
+        sessionStorage.setItem(`bs-checkout-token-${data.sessionId}`, data.checkoutToken)
+      }
+
       // Redirect to Stripe Checkout
       window.location.href = data.url
     } catch (error: unknown) {

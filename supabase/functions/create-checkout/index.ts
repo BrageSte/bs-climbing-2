@@ -4,6 +4,7 @@ import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supa
 import { serveCors } from "../_shared/cors.ts";
 
 const STRIPE_API_VERSION: Stripe.LatestApiVersion = "2025-08-27.basil";
+const ORDER_STATUS_SECRET = Deno.env.get("ORDER_STATUS_SECRET");
 const VALID_DELIVERY_METHODS = new Set(["shipping", "pickup-gneis", "pickup-oslo"]);
 const VALID_PAYMENT_METHODS = new Set(["card", "vipps"]);
 const PICKUP_LOCATION_LABELS: Record<string, string> = {
@@ -14,6 +15,24 @@ const BLOCK_VARIANT_LABELS: Record<"shortedge" | "longedge", string> = {
   shortedge: "Compact",
   longedge: "Long Edge",
 };
+
+function toBase64Url(bytes: Uint8Array): string {
+  const base64 = btoa(String.fromCharCode(...bytes));
+  return base64.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
+}
+
+async function computeCheckoutToken(secret: string, sessionId: string): Promise<string> {
+  const enc = new TextEncoder();
+  const key = await crypto.subtle.importKey(
+    "raw",
+    enc.encode(secret),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"],
+  );
+  const sig = await crypto.subtle.sign("HMAC", key, enc.encode(sessionId));
+  return toBase64Url(new Uint8Array(sig));
+}
 
 function buildStripeApiVersion(paymentMethod: "card" | "vipps") {
   // Vipps is currently gated behind an API preview header in Stripe.
@@ -384,6 +403,17 @@ function validateRequest(input: unknown): { ok: true; value: NormalizedRequest }
   if (parsedSuccessUrl.origin !== parsedCancelUrl.origin) {
     return { ok: false, response: errorResponse("INVALID_REQUEST", "successUrl and cancelUrl must use same origin.") };
   }
+  const siteUrl = Deno.env.get("PUBLIC_SITE_URL");
+  if (siteUrl) {
+    try {
+      const allowedOrigin = new URL(siteUrl).origin;
+      if (parsedSuccessUrl.origin !== allowedOrigin) {
+        return { ok: false, response: errorResponse("INVALID_REQUEST", "successUrl must use the site origin.") };
+      }
+    } catch {
+      // PUBLIC_SITE_URL is malformed; skip the check rather than blocking all checkouts.
+    }
+  }
 
   const hasPhysicalItems = normalizedItems.some((item) => !item.isDigital);
   let shippingAddress: NormalizedRequest["shippingAddress"] = null;
@@ -717,10 +747,15 @@ serve(serveCors(async (req) => {
       return errorResponse("SESSION_PERSIST_FAILED", "Checkout session created but persistence failed.", 500);
     }
 
+    const checkoutToken = ORDER_STATUS_SECRET
+      ? await computeCheckoutToken(ORDER_STATUS_SECRET, session.id)
+      : undefined;
+
     return jsonResponse({
       success: true,
       url: session.url,
       sessionId: session.id,
+      checkoutToken,
     });
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : "Unknown error";
