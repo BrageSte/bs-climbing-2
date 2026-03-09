@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { format } from 'date-fns'
 import { nb } from 'date-fns/locale'
@@ -42,6 +42,26 @@ const STATUS_STEPS: { status: OrderStatus; title: string; description: string }[
   { status: 'done', title: 'Fullført', description: 'Ordren er ferdigstilt.' },
 ]
 
+const ORDER_STATUS_TOKEN_KEY_PREFIX = 'bs-order-status-token-'
+
+function getStoredToken(orderId: string): string {
+  if (typeof window === 'undefined' || !orderId) return ''
+  try {
+    return sessionStorage.getItem(`${ORDER_STATUS_TOKEN_KEY_PREFIX}${orderId}`) ?? ''
+  } catch {
+    return ''
+  }
+}
+
+function storeToken(orderId: string, token: string) {
+  if (typeof window === 'undefined' || !orderId || !token) return
+  try {
+    sessionStorage.setItem(`${ORDER_STATUS_TOKEN_KEY_PREFIX}${orderId}`, token)
+  } catch {
+    // Ignore storage failures.
+  }
+}
+
 function normalizeErrorMessage(raw?: string) {
   if (!raw) return 'Kunne ikke hente ordrestatus'
   const value = raw.toLowerCase()
@@ -56,14 +76,26 @@ function normalizeErrorMessage(raw?: string) {
 
 export default function OrderStatusPage() {
   const [searchParams, setSearchParams] = useSearchParams()
-  const initialOrderId = searchParams.get('orderId') ?? ''
-  const initialToken = searchParams.get('token') ?? ''
+  const initialOrderId = searchParams.get('orderId')?.trim() ?? ''
+  const initialTokenFromQuery = searchParams.get('token')?.trim() ?? ''
+  const initialToken = initialTokenFromQuery || getStoredToken(initialOrderId)
 
   const [orderIdInput, setOrderIdInput] = useState(initialOrderId)
   const [tokenInput, setTokenInput] = useState(initialToken)
   const [statusData, setStatusData] = useState<OrderStatusResponse | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState('')
+
+  useEffect(() => {
+    if (!initialTokenFromQuery) return
+    if (initialOrderId) {
+      storeToken(initialOrderId, initialTokenFromQuery)
+    }
+
+    const nextParams = new URLSearchParams(searchParams)
+    nextParams.delete('token')
+    setSearchParams(nextParams, { replace: true })
+  }, [initialOrderId, initialTokenFromQuery, searchParams, setSearchParams])
 
   useEffect(() => {
     if (!initialOrderId || !initialToken) return
@@ -74,63 +106,66 @@ export default function OrderStatusPage() {
     setIsLoading(true)
     setError('')
     setStatusData(null)
-
-    const sb = supabase
-    if (!sb) {
-      setError(
-        'Ordrestatus er utilgjengelig fordi Supabase ikke er konfigurert. Oppdater baked config i src/integrations/supabase/publicEnv.ts eller sett VITE_SUPABASE_URL + (VITE_SUPABASE_PUBLISHABLE_KEY/VITE_SUPABASE_ANON_KEY) der hosten stotter det.'
-      )
-      setIsLoading(false)
-      return
-    }
-
-    if (!token.trim()) {
-      setError('Mangler sikkerhetskode. Åpne lenken fra ordrebekreftelsen på e-post.')
-      setIsLoading(false)
-      return
-    }
-
-    const { data, error: invokeError } = await sb.functions.invoke('get-order-status', {
-      body: { orderId },
-      // Do not override `Authorization` (Supabase uses it for JWT verification). Send our HMAC token
-      // in a custom header that the edge function explicitly whitelists for CORS.
-      headers: { 'x-order-status-token': token.trim() },
-    })
-
-    if (invokeError) {
-      let serverMessage = ''
-      let serverCode = ''
-      const context = (invokeError as { context?: Response }).context
-      if (context) {
-        try {
-          const bodyText = await context.text()
-          if (bodyText) {
-            const parsed = JSON.parse(bodyText) as { error?: string; code?: string }
-            serverMessage = parsed.error ?? ''
-            serverCode = parsed.code ?? ''
-          }
-        } catch {
-          // Ignore parse failures
-        }
+    try {
+      const sb = supabase
+      if (!sb) {
+        setError(
+          'Ordrestatus er utilgjengelig fordi Supabase ikke er konfigurert. Oppdater baked config i src/integrations/supabase/publicEnv.ts eller sett VITE_SUPABASE_URL + (VITE_SUPABASE_PUBLISHABLE_KEY/VITE_SUPABASE_ANON_KEY) der hosten stotter det.'
+        )
+        return
       }
 
-      const normalizedMessage = normalizeErrorMessage(serverMessage || invokeError.message)
-      const codeLabel = serverCode ? ` Feilkode: ${serverCode}.` : ' Feilkode: OS_EDGE_HTTP_ERROR.'
-      setError(`${normalizedMessage}.${codeLabel}`)
-      setIsLoading(false)
-      return
-    }
+      const trimmedToken = token.trim()
+      if (!trimmedToken) {
+        setError('Mangler sikkerhetskode. Åpne lenken fra ordrebekreftelsen på e-post.')
+        return
+      }
 
-    if (!data?.order) {
-      const normalizedMessage = normalizeErrorMessage(data?.error)
-      const codeLabel = data?.code ? ` Feilkode: ${data.code}.` : ' Feilkode: OS_NOT_FOUND.'
-      setError(`${normalizedMessage}.${codeLabel}`)
-      setIsLoading(false)
-      return
-    }
+      const { data, error: invokeError } = await sb.functions.invoke('get-order-status', {
+        body: { orderId },
+        // Do not override `Authorization` (Supabase uses it for JWT verification). Send our HMAC token
+        // in a custom header that the edge function explicitly whitelists for CORS.
+        headers: { 'x-order-status-token': trimmedToken },
+      })
 
-    setStatusData(data as OrderStatusResponse)
-    setIsLoading(false)
+      if (invokeError) {
+        let serverMessage = ''
+        let serverCode = ''
+        const context = (invokeError as { context?: Response }).context
+        if (context) {
+          try {
+            const bodyText = await context.text()
+            if (bodyText) {
+              const parsed = JSON.parse(bodyText) as { error?: string; code?: string }
+              serverMessage = parsed.error ?? ''
+              serverCode = parsed.code ?? ''
+            }
+          } catch {
+            // Ignore parse failures
+          }
+        }
+
+        const normalizedMessage = normalizeErrorMessage(serverMessage || invokeError.message)
+        const codeLabel = serverCode ? ` Feilkode: ${serverCode}.` : ' Feilkode: OS_EDGE_HTTP_ERROR.'
+        setError(`${normalizedMessage}.${codeLabel}`)
+        return
+      }
+
+      if (!data?.order) {
+        const normalizedMessage = normalizeErrorMessage(data?.error)
+        const codeLabel = data?.code ? ` Feilkode: ${data.code}.` : ' Feilkode: OS_NOT_FOUND.'
+        setError(`${normalizedMessage}.${codeLabel}`)
+        return
+      }
+
+      setStatusData(data as OrderStatusResponse)
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Ukjent feil'
+      const normalizedMessage = normalizeErrorMessage(message)
+      setError(`${normalizedMessage}. Feilkode: OS_RUNTIME_ERROR.`)
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   const handleSubmit = async (event: React.FormEvent) => {
@@ -148,7 +183,8 @@ export default function OrderStatusPage() {
       return
     }
 
-    setSearchParams({ orderId: trimmedOrderId, token: trimmedToken })
+    storeToken(trimmedOrderId, trimmedToken)
+    setSearchParams({ orderId: trimmedOrderId })
     await fetchOrderStatus(trimmedOrderId, trimmedToken)
   }
 

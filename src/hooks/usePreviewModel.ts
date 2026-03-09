@@ -108,11 +108,8 @@ const STATIC_URLS: Record<number, string> = {
 // API call
 // ---------------------------------------------------------------------------
 
-/**
- * Placeholder: when the Supabase Edge Function `preview-model` is deployed,
- * change this to the real endpoint URL.
- */
-const API_ENDPOINT: string | null = null; // e.g. "https://<project>.supabase.co/functions/v1/preview-model"
+const API_ENDPOINT = import.meta.env.VITE_PREVIEW_MODEL_API_ENDPOINT?.trim() || null;
+const API_TOKEN = import.meta.env.VITE_PREVIEW_MODEL_TOKEN?.trim() || "";
 
 async function fetchPreviewUrl(
   normalized: Record<string, unknown>,
@@ -125,9 +122,14 @@ async function fetchPreviewUrl(
     return STATIC_URLS[edgeMode] ?? STATIC_URLS[0];
   }
 
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (API_TOKEN) {
+    headers["x-preview-token"] = API_TOKEN;
+  }
+
   const res = await fetch(API_ENDPOINT, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers,
     body: JSON.stringify({ params: normalized, hash }),
     signal,
   });

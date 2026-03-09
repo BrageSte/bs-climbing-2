@@ -18,6 +18,10 @@ export const supabasePublicConfigReason = configWithReason.reason;
 
 export const supabase: SupabaseClient<Database> | null = (() => {
   const { url, key, source } = supabasePublicConfig;
+  const hasBrowserStorage =
+    typeof window !== "undefined" &&
+    typeof window.localStorage?.getItem === "function" &&
+    typeof window.localStorage?.setItem === "function";
 
   if (!url || !key) {
     if (source !== "missing") {
@@ -38,9 +42,9 @@ export const supabase: SupabaseClient<Database> | null = (() => {
   try {
     return createClient<Database>(url, key, {
       auth: {
-        storage: typeof localStorage === "undefined" ? undefined : localStorage,
-        persistSession: true,
-        autoRefreshToken: true,
+        storage: hasBrowserStorage ? window.localStorage : undefined,
+        persistSession: hasBrowserStorage,
+        autoRefreshToken: hasBrowserStorage,
       },
     });
   } catch (error) {
@@ -58,4 +62,3 @@ export function requireSupabase(): SupabaseClient<Database> {
   const reason = supabasePublicConfigReason ? ` (${supabasePublicConfigReason})` : "";
   throw new Error(`${hint}${reason}`);
 }
-

@@ -50,7 +50,12 @@ function parseShippingAddress(value: unknown): ShippingAddress | undefined {
   if (!isRecord(value)) return undefined;
   const line1 = typeof value.line1 === "string" ? value.line1 : null;
   const line2 = typeof value.line2 === "string" ? value.line2 : undefined;
-  const postalCode = typeof value.postalCode === "string" ? value.postalCode : null;
+  const postalCode =
+    typeof value.postalCode === "string"
+      ? value.postalCode
+      : typeof value.postal_code === "string"
+        ? value.postal_code
+        : null;
   const city = typeof value.city === "string" ? value.city : null;
 
   if (!line1 || !postalCode || !city) return undefined;
@@ -302,6 +307,7 @@ export default function CheckoutSuccess() {
 
         const { data: verifyData } = await sb.functions.invoke<VerifySessionResponse>("verify-session", {
           body: { sessionId },
+          headers: { "x-checkout-token": checkoutToken },
         });
 
         if (verifyData?.success && verifyData.paid) {

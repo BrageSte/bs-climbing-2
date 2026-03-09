@@ -430,7 +430,12 @@ function parseShippingAddress(value: unknown): ShippingAddress | undefined {
   if (!isRecord(value)) return undefined;
   const line1 = typeof value.line1 === "string" ? value.line1 : "";
   const line2 = typeof value.line2 === "string" ? value.line2 : undefined;
-  const postalCode = typeof value.postalCode === "string" ? value.postalCode : "";
+  const postalCode =
+    typeof value.postalCode === "string"
+      ? value.postalCode
+      : typeof value.postal_code === "string"
+        ? value.postal_code
+        : "";
   const city = typeof value.city === "string" ? value.city : "";
   if (!line1 || !postalCode || !city) return undefined;
   return { line1, line2, postalCode, city };

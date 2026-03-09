@@ -22,6 +22,12 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
 import { serveCors } from "../_shared/cors.ts";
+import { timingSafeEqual } from "../_shared/timing.ts";
+
+const PREVIEW_MODEL_TOKEN = Deno.env.get("PREVIEW_MODEL_TOKEN")?.trim() ?? "";
+const RATE_LIMIT_WINDOW_MS = 60_000;
+const RATE_LIMIT_MAX_REQUESTS = 30;
+const requestBuckets = new Map<string, { count: number; windowStartedAt: number }>();
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -32,6 +38,33 @@ function json(payload: unknown, status = 200): Response {
     status,
     headers: { "Content-Type": "application/json" },
   });
+}
+
+function extractClientKey(req: Request): string {
+  const forwarded = req.headers.get("x-forwarded-for");
+  if (forwarded) {
+    const firstIp = forwarded.split(",")[0]?.trim();
+    if (firstIp) return firstIp;
+  }
+  const cfIp = req.headers.get("cf-connecting-ip")?.trim();
+  if (cfIp) return cfIp;
+  return "unknown";
+}
+
+function isRateLimited(clientKey: string, nowMs: number): boolean {
+  const bucket = requestBuckets.get(clientKey);
+  if (!bucket || nowMs - bucket.windowStartedAt >= RATE_LIMIT_WINDOW_MS) {
+    requestBuckets.set(clientKey, { count: 1, windowStartedAt: nowMs });
+    return false;
+  }
+
+  if (bucket.count >= RATE_LIMIT_MAX_REQUESTS) {
+    return true;
+  }
+
+  bucket.count += 1;
+  requestBuckets.set(clientKey, bucket);
+  return false;
 }
 
 // ---------------------------------------------------------------------------
@@ -128,6 +161,23 @@ serve(serveCors(async (req) => {
     return json({ error: "Method not allowed" }, 405);
   }
 
+  if (!PREVIEW_MODEL_TOKEN) {
+    return json({ error: "Server configuration incomplete." }, 500);
+  }
+
+  const requestToken = req.headers.get("x-preview-token")?.trim() ?? "";
+  if (!requestToken) {
+    return json({ error: "Unauthorized" }, 401);
+  }
+  if (!timingSafeEqual(requestToken, PREVIEW_MODEL_TOKEN)) {
+    return json({ error: "Unauthorized" }, 403);
+  }
+
+  const clientKey = extractClientKey(req);
+  if (isRateLimited(clientKey, Date.now())) {
+    return json({ error: "Too many requests" }, 429);
+  }
+
   const supabaseUrl = Deno.env.get("SUPABASE_URL");
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
   if (!supabaseUrl || !serviceKey) {
@@ -192,4 +242,4 @@ serve(serveCors(async (req) => {
     console.error("[preview-model] unexpected error:", err);
     return json({ error: "Internal error." }, 500);
   }
-}));
+}, ["x-preview-token"]));

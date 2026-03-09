@@ -25,6 +25,8 @@ export default class AppErrorBoundary extends Component<
   }
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo): void {
+    if (!import.meta.env.DEV) return;
+
     const boundaryName = this.props.boundaryName ?? "unknown";
     console.error(`[error-boundary:${boundaryName}]`, {
       message: error.message,

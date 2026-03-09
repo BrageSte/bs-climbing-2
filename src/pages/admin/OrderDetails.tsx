@@ -157,6 +157,7 @@ Total bredde: ${item.totalWidth.toFixed(1)} mm
   }
 
   const currentNotes = notes ?? order.internal_notes ?? ''
+  const shippingPostalCode = shippingAddress?.postalCode ?? shippingAddress?.postal_code
 
   return (
     <AdminLayout>
@@ -226,8 +227,8 @@ Total bredde: ${item.totalWidth.toFixed(1)} mm
                   <div className="text-sm text-muted-foreground">
                     {shippingAddress.line1 && <div>{shippingAddress.line1}</div>}
                     {shippingAddress.line2 && <div>{shippingAddress.line2}</div>}
-                    {(shippingAddress.postal_code || shippingAddress.city) && (
-                      <div>{shippingAddress.postal_code} {shippingAddress.city}</div>
+                    {(shippingPostalCode || shippingAddress.city) && (
+                      <div>{shippingPostalCode} {shippingAddress.city}</div>
                     )}
                     {shippingAddress.country && <div>{shippingAddress.country}</div>}
                   </div>

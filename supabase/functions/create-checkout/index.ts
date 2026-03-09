@@ -78,6 +78,7 @@ interface CheckoutRequest {
     line1: string;
     line2?: string;
     postalCode: string;
+    postal_code?: string;
     city: string;
   };
   promoCode?: string;
@@ -423,7 +424,10 @@ function validateRequest(input: unknown): { ok: true; value: NormalizedRequest }
     }
     const line1 = asTrimmedString(input.shippingAddress.line1, 200);
     const line2 = asOptionalTrimmedString(input.shippingAddress.line2, 200);
-    const postalCode = asTrimmedString(input.shippingAddress.postalCode, 20);
+    const postalCode = asTrimmedString(
+      input.shippingAddress.postalCode ?? input.shippingAddress.postal_code,
+      20,
+    );
     const city = asTrimmedString(input.shippingAddress.city, 80);
     if (!line1 || !postalCode || !city) {
       return { ok: false, response: errorResponse("INVALID_REQUEST", "shippingAddress contains invalid fields.") };
