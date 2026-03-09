@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import Stripe from "https://esm.sh/stripe@18.5.0";
 import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
+import { serveCors } from "../_shared/cors.ts";
 
 // Edge functions typically don't ship the generated Database type; keep this untyped to avoid
 // "never" inference issues during Lovable/Supabase typechecking.
@@ -8,15 +9,9 @@ type SupabaseAdmin = SupabaseClient;
 
 const STRIPE_API_VERSION: Stripe.LatestApiVersion = "2025-08-27.basil";
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version, stripe-signature",
-};
-
 function jsonResponse(payload: unknown, status = 200): Response {
   return new Response(JSON.stringify(payload), {
-    headers: { ...corsHeaders, "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json" },
     status,
   });
 }
@@ -179,11 +174,7 @@ async function sendOrderConfirmationEmail(
   }
 }
 
-serve(async (req) => {
-  if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
-  }
-
+serve(serveCors(async (req) => {
   const stripeSecretKey = Deno.env.get("STRIPE_SECRET_KEY");
   const stripeWebhookSecret = Deno.env.get("STRIPE_WEBHOOK_SECRET");
   const supabaseUrl = Deno.env.get("SUPABASE_URL");
@@ -314,4 +305,4 @@ serve(async (req) => {
     console.error("[stripe-webhook] Handler error", { eventType: event.type, error });
     return jsonResponse({ success: false, error: "Webhook handler failed." }, 500);
   }
-});
+}, ["stripe-signature"]));

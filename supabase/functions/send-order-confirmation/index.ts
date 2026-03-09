@@ -1,12 +1,8 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { Resend } from "https://esm.sh/resend@2.0.0";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
-};
+import { serveCors } from "../_shared/cors.ts";
+import { timingSafeEqual } from "../_shared/timing.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
@@ -21,7 +17,7 @@ const supabaseAdmin = SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY
 function jsonResponse(payload: unknown, status = 200): Response {
   return new Response(JSON.stringify(payload), {
     status,
-    headers: { "Content-Type": "application/json", ...corsHeaders },
+    headers: { "Content-Type": "application/json" },
   });
 }
 
@@ -53,7 +49,9 @@ function isInternalAuthorized(req: Request): boolean {
   if (!SUPABASE_SERVICE_ROLE_KEY) return false;
   const bearer = extractBearerToken(req.headers.get("authorization"));
   const apikey = req.headers.get("apikey")?.trim() ?? null;
-  return bearer === SUPABASE_SERVICE_ROLE_KEY || apikey === SUPABASE_SERVICE_ROLE_KEY;
+  const bearerMatch = bearer !== null && timingSafeEqual(bearer, SUPABASE_SERVICE_ROLE_KEY);
+  const apikeyMatch = apikey !== null && timingSafeEqual(apikey, SUPABASE_SERVICE_ROLE_KEY);
+  return bearerMatch || apikeyMatch;
 }
 
 async function resolveProductionNumber(order: OrderConfirmationRequest): Promise<OrderConfirmationRequest> {
@@ -465,11 +463,6 @@ interface SendOrderConfirmationInput {
 }
 
 const handler = async (req: Request): Promise<Response> => {
-  // Handle CORS preflight requests
-  if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
-  }
-
   try {
     if (!isInternalAuthorized(req)) {
       return jsonResponse({ success: false, error: "Unauthorized" }, 401);
@@ -569,4 +562,4 @@ const handler = async (req: Request): Promise<Response> => {
   }
 };
 
-serve(handler);
+serve(serveCors(handler));
