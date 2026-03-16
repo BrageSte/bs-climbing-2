@@ -12,7 +12,7 @@ export function exportGeometryAsSTL(
   const mesh = new THREE.Mesh(geometry);
   const exporter = new STLExporter();
   const result = exporter.parse(mesh, { binary: true });
-  const blob = new Blob([result], { type: "application/octet-stream" });
+  const blob = new Blob([result instanceof DataView ? result.buffer as ArrayBuffer : result], { type: "application/octet-stream" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
