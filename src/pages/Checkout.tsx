@@ -14,6 +14,7 @@ interface CreateCheckoutResponse {
   success?: boolean
   url?: string
   sessionId?: string
+  checkoutToken?: string
   freeOrder?: boolean
   orderId?: string
   totals?: {
