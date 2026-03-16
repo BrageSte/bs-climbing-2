@@ -119,9 +119,9 @@ export function toSafeSlug(value: string): string {
   const slug = value
     .trim()
     .toLowerCase()
-    .replaceAll('æ', 'ae')
-    .replaceAll('ø', 'o')
-    .replaceAll('å', 'a')
+    .replace(/æ/g, 'ae')
+    .replace(/ø/g, 'o')
+    .replace(/å/g, 'a')
     .normalize('NFKD')
     .replace(/[\u0300-\u036f]/g, '')
     .replaceAll('@', '-at-')
