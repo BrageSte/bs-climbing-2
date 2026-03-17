@@ -31,18 +31,18 @@ export default tseslint.config(
       "@typescript-eslint/no-unused-vars": "off",
     },
   },
-  ...(isSecurityLint
-    ? [
-        {
-          files: ["supabase/functions/**/*.{ts,js}", "scripts/**/*.{ts,js,mjs,cjs}"],
-          plugins: {
-            security,
-          },
+  {
+    files: ["supabase/functions/**/*.{ts,js}", "scripts/**/*.{ts,js,mjs,cjs}"],
+    plugins: {
+      security,
+    },
+    ...(isSecurityLint
+      ? {
           rules: {
             ...security.configs.recommended.rules,
             "security/detect-object-injection": "off",
           },
-        },
-      ]
-    : []),
+        }
+      : {}),
+  },
 );

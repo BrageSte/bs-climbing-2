@@ -24,10 +24,10 @@ npm run security:audit
 
 V1 tillater kun dagens kjente baseline-funn:
 
-- `flatted` med hoy risiko, transitiv via ESLint-kjeden
-- `undici` med hoy risiko, transitiv via `jsdom` i testmiljoet
+- `flatted` med hoy risiko, advisory `1114526:high`, transitiv via ESLint-kjeden
+- `undici` med advisory-settet `1114591:high`, `1114593:moderate`, `1114637:high`, `1114639:high`, `1114641:moderate`, `1114643:moderate`, transitiv via `jsdom` i testmiljoet
 
-Alle nye funn eller endret alvorlighetsgrad skal feile sjekken.
+Alle nye funn, nye advisory-IDer eller endret alvorlighetsgrad skal feile sjekken.
 
 ### 2. Statisk kodekontroll
 
@@ -62,13 +62,14 @@ Sjekk at:
 - `src/integrations/supabase/publicEnv.ts` kun inneholder browser-safe URL + publishable/anon key
 - `scripts/supabase/set-secrets.sh` fortsatt krever `STRIPE_SECRET_KEY`, `RESEND_API_KEY`, `PUBLIC_SITE_URL` og `ORDER_STATUS_SECRET`
 - service-role og andre private verdier kun ligger i Supabase secrets, ikke i klientkode
+- `preview-model` behandles som en offentlig browser-endpoint hvis den er aktivert, og ikke er avhengig av `VITE_*`-hemmeligheter for tilgangskontroll
 
 ### 5. Data- og tilgangskontroll
 
 Ved endringer i backend skal disse punktene verifiseres manuelt:
 
 - public klient skal ikke kunne opprette ordre direkte med egne priser
-- `create-checkout` skal fortsatt beregne priser server-side
+- `create-checkout` skal fortsatt beregne priser server-side og feile lukket hvis `PUBLIC_SITE_URL` mangler eller er ugyldig
 - migrasjoner som paavirker `orders`, `checkout_sessions`, `site_settings` eller RLS skal leses og vurderes eksplisitt
 - HMAC/token-beskyttede flyter for ordrestatus og checkout-resultat skal ikke svekkes
 

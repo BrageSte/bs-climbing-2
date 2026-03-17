@@ -18,13 +18,15 @@
  *
  * TODO: Implementer faktisk STL-generering.  Nåværende skeleton returnerer
  * en statisk fallback-URL (compact / longedge STL) fra public assets.
+ *
+ * Denne edge-funksjonen er offentlig for nettleser-preview. Beskyttelse skal
+ * komme fra CORS, rate limiting og streng input-normalisering, ikke fra et
+ * klienteksponert VITE-token.
  */
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
 import { serveCors } from "../_shared/cors.ts";
-import { timingSafeEqual } from "../_shared/timing.ts";
 
-const PREVIEW_MODEL_TOKEN = Deno.env.get("PREVIEW_MODEL_TOKEN")?.trim() ?? "";
 const RATE_LIMIT_WINDOW_MS = 60_000;
 const RATE_LIMIT_MAX_REQUESTS = 30;
 const requestBuckets = new Map<string, { count: number; windowStartedAt: number }>();
@@ -38,6 +40,10 @@ function json(payload: unknown, status = 200): Response {
     status,
     headers: { "Content-Type": "application/json" },
   });
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
 
 function extractClientKey(req: Request): string {
@@ -161,18 +167,6 @@ serve(serveCors(async (req) => {
     return json({ error: "Method not allowed" }, 405);
   }
 
-  if (!PREVIEW_MODEL_TOKEN) {
-    return json({ error: "Server configuration incomplete." }, 500);
-  }
-
-  const requestToken = req.headers.get("x-preview-token")?.trim() ?? "";
-  if (!requestToken) {
-    return json({ error: "Unauthorized" }, 401);
-  }
-  if (!timingSafeEqual(requestToken, PREVIEW_MODEL_TOKEN)) {
-    return json({ error: "Unauthorized" }, 403);
-  }
-
   const clientKey = extractClientKey(req);
   if (isRateLimited(clientKey, Date.now())) {
     return json({ error: "Too many requests" }, 429);
@@ -186,7 +180,7 @@ serve(serveCors(async (req) => {
 
   try {
     const body = await req.json();
-    const rawParams: RawParams = body?.params ?? {};
+    const rawParams: RawParams = isRecord(body) && isRecord(body.params) ? body.params as RawParams : {};
     const normalized = normalize(rawParams);
     const hash = await sha256(JSON.stringify(normalized));
     const storagePath = `previews/${hash}.stl`;

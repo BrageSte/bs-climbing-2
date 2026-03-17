@@ -34,6 +34,7 @@ Foer agenten foreslar eller implementerer endringer i checkout, ordre, produksjo
 
 - ikke hardkod priser, frakt eller promo i frontend hvis samme verdi skal komme fra `site_settings`
 - ikke legg hemmeligheter, service-role-verdier eller private tokens i repoet
+- ikke bruk `VITE_*`-variabler som om de var hemmelige tilgangstokener
 - ikke opprett ordre direkte fra klient med klientbestemte priser
 - ikke endre migrasjoner eller edge functions uten a vurdere RLS, service-role og dataflyt
 - ikke anta at baked Supabase-konfig kan inneholde private nokler; den ma alltid vaere browser-safe

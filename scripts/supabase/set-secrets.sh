@@ -51,11 +51,6 @@ supabase secrets set --project-ref "$PROJECT_REF" \
   "PUBLIC_SITE_URL=${PUBLIC_SITE_URL}" \
   "ORDER_STATUS_SECRET=${ORDER_STATUS_SECRET}"
 
-if [[ -n "${PREVIEW_MODEL_TOKEN:-}" ]]; then
-  supabase secrets set --project-ref "$PROJECT_REF" \
-    "PREVIEW_MODEL_TOKEN=${PREVIEW_MODEL_TOKEN}"
-fi
-
 if [[ -n "${STRIPE_WEBHOOK_SECRET:-}" ]]; then
   supabase secrets set --project-ref "$PROJECT_REF" \
     "STRIPE_WEBHOOK_SECRET=${STRIPE_WEBHOOK_SECRET}"

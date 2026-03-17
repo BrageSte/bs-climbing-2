@@ -5,6 +5,7 @@ const KNOWN_BASELINE = new Map([
     "flatted",
     {
       severity: "high",
+      advisories: ["1114526:high"],
       note: "Transitiv via eslint -> file-entry-cache -> flat-cache -> flatted",
     },
   ],
@@ -12,6 +13,14 @@ const KNOWN_BASELINE = new Map([
     "undici",
     {
       severity: "high",
+      advisories: [
+        "1114591:high",
+        "1114593:moderate",
+        "1114637:high",
+        "1114639:high",
+        "1114641:moderate",
+        "1114643:moderate",
+      ],
       note: "Transitiv via jsdom i testmiljoet",
     },
   ],
@@ -33,8 +42,22 @@ function summarize(vulnerabilities) {
   return Object.entries(vulnerabilities).map(([name, vuln]) => ({
     name,
     severity: vuln.severity,
-    via: Array.isArray(vuln.via) ? vuln.via.length : 0,
+    advisories: Array.isArray(vuln.via)
+      ? vuln.via
+          .flatMap((entry) => {
+            if (!entry || typeof entry !== "object") return [];
+            const source = "source" in entry ? entry.source : null;
+            const severity = typeof entry.severity === "string" ? entry.severity : null;
+            return typeof source === "number" && severity ? [`${source}:${severity}`] : [];
+          })
+          .sort()
+      : [],
   }));
+}
+
+function arraysEqual(a, b) {
+  if (a.length !== b.length) return false;
+  return a.every((value, index) => value === b[index]);
 }
 
 const raw = runAudit();
@@ -44,7 +67,7 @@ const summary = summarize(vulnerabilities);
 
 const unexpected = summary.filter((item) => {
   const known = KNOWN_BASELINE.get(item.name);
-  return !known || known.severity !== item.severity;
+  return !known || known.severity !== item.severity || !arraysEqual(known.advisories, item.advisories);
 });
 
 if (summary.length === 0) {
@@ -57,7 +80,8 @@ for (const item of summary) {
   const known = KNOWN_BASELINE.get(item.name);
   const status = known ? "baseline" : "ny";
   const note = known?.note ? ` - ${known.note}` : "";
-  console.log(`- ${item.name} (${item.severity}, ${status})${note}`);
+  const advisorySummary = item.advisories.length > 0 ? ` [${item.advisories.join(", ")}]` : "";
+  console.log(`- ${item.name} (${item.severity}, ${status})${advisorySummary}${note}`);
 }
 
 if (unexpected.length > 0) {

@@ -3,12 +3,9 @@
  *
  * Reads PUBLIC_SITE_URL from env to build an origin allowlist.
  * Localhost origins are allowed automatically for local development.
- * If PUBLIC_SITE_URL is not set, echoes back the request origin (permissive
- * fallback) with a console warning so that deploys without the env var
- * don't immediately break.
+ * If PUBLIC_SITE_URL is not set, cross-origin requests are blocked with a
+ * console warning so that broken deploy configuration is visible quickly.
  */
-
-const LOCALHOST_RE = /^https?:\/\/(?:localhost|127\.0\.0\.1)(:\d+)?$/;
 
 const BASE_ALLOWED_HEADERS = [
   "authorization",
@@ -22,6 +19,17 @@ const BASE_ALLOWED_HEADERS = [
 ];
 
 let warnedMissing = false;
+
+function isLocalhostOrigin(origin: string): boolean {
+  try {
+    const parsed = new URL(origin);
+    const isHttp = parsed.protocol === "http:" || parsed.protocol === "https:";
+    const isLocalhost = parsed.hostname === "localhost" || parsed.hostname === "127.0.0.1";
+    return isHttp && isLocalhost;
+  } catch {
+    return false;
+  }
+}
 
 function buildAllowedOrigins(): string[] {
   const siteUrl = Deno.env.get("PUBLIC_SITE_URL")?.trim();
@@ -45,7 +53,7 @@ function resolveOrigin(origin: string | null): string | null {
   // If PUBLIC_SITE_URL is configured, check against allowlist + localhost.
   if (allowedOrigins.length > 0) {
     if (allowedOrigins.includes(origin)) return origin;
-    if (LOCALHOST_RE.test(origin)) return origin;
+    if (isLocalhostOrigin(origin)) return origin;
     return null;
   }
 

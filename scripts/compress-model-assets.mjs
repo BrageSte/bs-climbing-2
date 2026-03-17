@@ -1,3 +1,5 @@
+/* eslint security/detect-non-literal-fs-filename: "off" */
+// This script only reads and writes repo-controlled model assets under process.cwd().
 import { readFile, readdir, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { gzipSync } from "node:zlib";

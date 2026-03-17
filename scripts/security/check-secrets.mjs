@@ -1,3 +1,5 @@
+/* eslint security/detect-non-literal-fs-filename: "off" */
+// This scanner intentionally walks the repo tree to inspect tracked text files.
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import path from "node:path";
 

@@ -329,7 +329,29 @@ function extractConfigSnapshot(item: NormalizedItem, unitPriceOre: number) {
   };
 }
 
-function validateRequest(input: unknown): { ok: true; value: NormalizedRequest } | { ok: false; response: Response } {
+function getConfiguredSiteOrigin(): { ok: true; origin: string } | { ok: false; response: Response } {
+  const siteUrl = Deno.env.get("PUBLIC_SITE_URL")?.trim();
+  if (!siteUrl) {
+    return {
+      ok: false,
+      response: errorResponse("CONFIG_MISSING", "PUBLIC_SITE_URL is not configured.", 500),
+    };
+  }
+
+  try {
+    return { ok: true, origin: new URL(siteUrl).origin };
+  } catch {
+    return {
+      ok: false,
+      response: errorResponse("CONFIG_MISSING", "PUBLIC_SITE_URL is invalid.", 500),
+    };
+  }
+}
+
+function validateRequest(
+  input: unknown,
+  allowedOrigin: string,
+): { ok: true; value: NormalizedRequest } | { ok: false; response: Response } {
   if (!isRecord(input)) {
     return { ok: false, response: errorResponse("INVALID_REQUEST", "Request body must be an object.") };
   }
@@ -404,16 +426,8 @@ function validateRequest(input: unknown): { ok: true; value: NormalizedRequest }
   if (parsedSuccessUrl.origin !== parsedCancelUrl.origin) {
     return { ok: false, response: errorResponse("INVALID_REQUEST", "successUrl and cancelUrl must use same origin.") };
   }
-  const siteUrl = Deno.env.get("PUBLIC_SITE_URL");
-  if (siteUrl) {
-    try {
-      const allowedOrigin = new URL(siteUrl).origin;
-      if (parsedSuccessUrl.origin !== allowedOrigin) {
-        return { ok: false, response: errorResponse("INVALID_REQUEST", "successUrl must use the site origin.") };
-      }
-    } catch {
-      // PUBLIC_SITE_URL is malformed; skip the check rather than blocking all checkouts.
-    }
+  if (parsedSuccessUrl.origin !== allowedOrigin) {
+    return { ok: false, response: errorResponse("INVALID_REQUEST", "successUrl must use the configured site origin.") };
   }
 
   const hasPhysicalItems = normalizedItems.some((item) => !item.isDigital);
@@ -491,8 +505,11 @@ serve(serveCors(async (req) => {
   });
 
   try {
+    const siteOrigin = getConfiguredSiteOrigin();
+    if (!siteOrigin.ok) return siteOrigin.response;
+
     const payload = await req.json();
-    const validation = validateRequest(payload);
+    const validation = validateRequest(payload, siteOrigin.origin);
     if (!validation.ok) return validation.response;
 
     const input = validation.value;

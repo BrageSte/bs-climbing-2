@@ -1,3 +1,5 @@
+/* eslint security/detect-non-literal-fs-filename: "off" */
+// This script only reads repo-controlled build output under process.cwd().
 import { readdir, stat } from "node:fs/promises";
 import path from "node:path";
 

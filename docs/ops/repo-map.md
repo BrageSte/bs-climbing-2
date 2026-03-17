@@ -66,6 +66,7 @@ Styringsdokumentet beskriver prosjektet riktig pa hoyt nivaa. Dette repoet er de
 
 - `supabase/functions/preview-model`: skeleton/TODO for server-side preview-generering
 - deler av STL/preview-oppsettet er operative i frontend, men ikke ferdigstilt som full server-side produksjonsflyt
+- dersom `preview-model` aktiveres, er den offentlig for browser-preview og ma sikres med CORS, rate limiting og streng input-normalisering
 
 ## Produksjonsflyt i kode
 
