@@ -2,15 +2,14 @@ import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
 import { serveCors } from "../_shared/cors.ts";
 import { timingSafeEqual } from "../_shared/timing.ts";
+import {
+  enforceRateLimit,
+  readJsonBody,
+  secureErrorResponse,
+  secureJsonResponse,
+} from "../_shared/security.ts";
 
 const ORDER_STATUS_SECRET = Deno.env.get("ORDER_STATUS_SECRET");
-
-function jsonResponse(payload: unknown, status = 200): Response {
-  return new Response(JSON.stringify(payload), {
-    headers: { "Content-Type": "application/json" },
-    status,
-  });
-}
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
@@ -37,27 +36,38 @@ async function computeCheckoutToken(secret: string, sessionId: string): Promise<
 serve(serveCors(async (req) => {
   const supabaseUrl = Deno.env.get("SUPABASE_URL");
   const supabaseServiceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+  const rateLimitSecret = Deno.env.get("RATE_LIMIT_SECRET");
 
   if (!supabaseUrl || !supabaseServiceRoleKey || !ORDER_STATUS_SECRET) {
-    return jsonResponse(
-      {
-        success: false,
-        error: { code: "CONFIG_MISSING", message: "Server configuration is incomplete." },
-      },
-      500
-    );
+    return secureErrorResponse("CONFIG_MISSING", "Server configuration is incomplete.", 500);
   }
 
   try {
-    const body = await req.json();
+    if (req.method !== "POST") {
+      return secureErrorResponse("METHOD_NOT_ALLOWED", "Method not allowed.", 405);
+    }
+
+    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceRoleKey, {
+      auth: { persistSession: false },
+    });
+
+    const rateLimitResponse = await enforceRateLimit({
+      req,
+      supabaseAdmin,
+      rateLimitSecret,
+      route: "get-checkout-result",
+      limit: 20,
+      windowSeconds: 600,
+      auditEventType: "status.rate_limited",
+    });
+    if (rateLimitResponse) return rateLimitResponse;
+
+    const parsedBody = await readJsonBody<Record<string, unknown>>(req, 2 * 1024);
+    if ("response" in parsedBody) return parsedBody.response;
+
+    const body = parsedBody.data;
     if (!isRecord(body) || typeof body.sessionId !== "string" || !body.sessionId.trim()) {
-      return jsonResponse(
-        {
-          success: false,
-          error: { code: "INVALID_REQUEST", message: "sessionId is required." },
-        },
-        400
-      );
+      return secureErrorResponse("INVALID_REQUEST", "sessionId is required.", 400);
     }
 
     const sessionId = body.sessionId.trim();
@@ -65,22 +75,12 @@ serve(serveCors(async (req) => {
     // Verify the caller holds the HMAC token we issued for this session.
     const token = req.headers.get("x-checkout-token")?.trim() ?? "";
     if (!token) {
-      return jsonResponse(
-        { success: false, error: { code: "MISSING_TOKEN", message: "Missing checkout token." } },
-        401
-      );
+      return secureErrorResponse("MISSING_TOKEN", "Missing checkout token.", 401);
     }
     const expected = await computeCheckoutToken(ORDER_STATUS_SECRET, sessionId);
     if (!timingSafeEqual(token, expected)) {
-      return jsonResponse(
-        { success: false, error: { code: "UNAUTHORIZED", message: "Invalid checkout token." } },
-        403
-      );
+      return secureErrorResponse("UNAUTHORIZED", "Invalid checkout token.", 403);
     }
-
-    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceRoleKey, {
-      auth: { persistSession: false },
-    });
 
     const { data: checkoutSession, error: checkoutError } = await supabaseAdmin
       .from("checkout_sessions")
@@ -99,17 +99,11 @@ serve(serveCors(async (req) => {
         code: checkoutError.code,
         message: checkoutError.message,
       });
-      return jsonResponse(
-        {
-          success: false,
-          error: { code: "DB_ERROR", message: "Database error." },
-        },
-        500
-      );
+      return secureErrorResponse("DB_ERROR", "Database error.", 500);
     }
 
     if (!checkoutSession) {
-      return jsonResponse({
+      return secureJsonResponse({
         success: true,
         status: "pending",
         checkout: null,
@@ -117,7 +111,7 @@ serve(serveCors(async (req) => {
     }
 
     if (checkoutSession.status === "expired") {
-      return jsonResponse({
+      return secureJsonResponse({
         success: true,
         status: "expired",
         checkout: checkoutSession,
@@ -125,7 +119,7 @@ serve(serveCors(async (req) => {
     }
 
     if (checkoutSession.status === "failed") {
-      return jsonResponse({
+      return secureJsonResponse({
         success: true,
         status: "failed",
         checkout: checkoutSession,
@@ -133,7 +127,7 @@ serve(serveCors(async (req) => {
     }
 
     if (!checkoutSession.order_id) {
-      return jsonResponse({
+      return secureJsonResponse({
         success: true,
         status: "pending",
         checkout: checkoutSession,
@@ -158,24 +152,18 @@ serve(serveCors(async (req) => {
         message: orderError.message,
         orderId: checkoutSession.order_id,
       });
-      return jsonResponse(
-        {
-          success: false,
-          error: { code: "DB_ERROR", message: "Database error." },
-        },
-        500
-      );
+      return secureErrorResponse("DB_ERROR", "Database error.", 500);
     }
 
     if (!order) {
-      return jsonResponse({
+      return secureJsonResponse({
         success: true,
         status: "pending",
         checkout: checkoutSession,
       });
     }
 
-    return jsonResponse({
+    return secureJsonResponse({
       success: true,
       status: "paid",
       checkout: checkoutSession,
@@ -184,12 +172,6 @@ serve(serveCors(async (req) => {
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : "Unknown error";
     console.error("[get-checkout-result] Unexpected error", message);
-    return jsonResponse(
-      {
-        success: false,
-        error: { code: "INTERNAL_ERROR", message: "Internal error." },
-      },
-      500
-    );
+    return secureErrorResponse("INTERNAL_ERROR", "Internal error.", 500);
   }
 }, ["x-checkout-token"]));

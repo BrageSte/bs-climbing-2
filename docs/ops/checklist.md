@@ -16,6 +16,7 @@ Kort sjekkliste for endringer som kan paavirke drift, sikkerhet, priser eller pr
 - kjor `npm test`
 - kjor `npm run security:check`
 - verifiser at `.env` og Supabase secrets matcher forventet miljo
+- verifiser at `RATE_LIMIT_SECRET` er satt i Supabase secrets for miljoet
 - verifiser at eventuelle migrasjoner er klare for `supabase db push`
 
 ## For pris- eller checkout-endring
@@ -23,6 +24,7 @@ Kort sjekkliste for endringer som kan paavirke drift, sikkerhet, priser eller pr
 - verifiser at `create-checkout` fortsatt beregner pris server-side
 - verifiser at frontend ikke innforer nye hardkodede priser
 - verifiser at `site_settings` er oppdatert og konsistent
+- verifiser at offentlige checkout-/status-endepunkter fortsatt returnerer kontrollerte 4xx-feil ved limit/invalid input
 - test betalt flyt og gratis ordre-flyt ende til ende
 - vurder konsekvens for Stripe/Vipps og ordrebekreftelse
 

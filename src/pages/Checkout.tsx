@@ -9,6 +9,7 @@ import { useToast } from '@/hooks/use-toast'
 import { PICKUP_LOCATIONS, DeliveryMethod, ShippingAddress, BlockConfig } from '@/types/shop'
 import { supabase } from '@/integrations/supabase/browserClient'
 import { useSettings } from '@/hooks/useSettings'
+import { readSupabaseFunctionError, toFriendlySecurityMessage } from '@/lib/securityMessages'
 
 interface CreateCheckoutResponse {
   success?: boolean
@@ -27,33 +28,6 @@ interface CreateCheckoutResponse {
     code?: string
     message?: string
   }
-}
-
-async function readSupabaseFunctionError(invokeError: unknown): Promise<{ code?: string; message: string }> {
-  const context = (invokeError as { context?: Response } | null)?.context
-  if (context) {
-    try {
-      const bodyText = await context.text()
-      if (bodyText) {
-        try {
-          const parsed = JSON.parse(bodyText) as { error?: { code?: string; message?: string } | string }
-          if (typeof parsed?.error === 'string') {
-            return { message: parsed.error }
-          }
-          if (parsed?.error && typeof parsed.error === 'object') {
-            return { code: parsed.error.code, message: parsed.error.message ?? 'Ukjent feil' }
-          }
-        } catch {
-          return { message: bodyText }
-        }
-      }
-    } catch {
-      // Ignore and fall through to default message.
-    }
-  }
-
-  const message = invokeError instanceof Error ? invokeError.message : 'Kunne ikke opprette betalingssesjon.'
-  return { message }
 }
 
 export default function Checkout() {
@@ -127,9 +101,9 @@ export default function Checkout() {
     if (!promoInput.trim()) return
     
     void (async () => {
-      const success = await applyPromoCode(promoInput.trim())
-      if (!success) {
-        setPromoError('Ugyldig promokode')
+      const result = await applyPromoCode(promoInput.trim())
+      if (!result.ok) {
+        setPromoError(result.message || 'Ugyldig promokode')
       } else {
         setPromoInput('')
       }
@@ -262,8 +236,9 @@ export default function Checkout() {
       })
 
       if (invokeError) {
-        const { code, message } = await readSupabaseFunctionError(invokeError)
-        throw new Error(code ? `[${code}] ${message}` : message)
+        const details = await readSupabaseFunctionError(invokeError)
+        const friendlyMessage = toFriendlySecurityMessage(details)
+        throw new Error(details.code ? `[${details.code}] ${friendlyMessage}` : friendlyMessage)
       }
 
       if (data?.success && data.freeOrder && data.orderId) {
@@ -299,6 +274,14 @@ export default function Checkout() {
             ? data?.error?.message || 'Bestilling er midlertidig satt pa pause. Prov igjen om kort tid.'
             : data?.error?.code === 'PAYMENT_METHOD_UNAVAILABLE'
             ? 'Valgt betalingsmetode er ikke tilgjengelig akkurat na. Prove kort eller sjekk Stripe-oppsettet.'
+            : data?.error?.code === 'RATE_LIMITED' || data?.error?.code === 'REQUEST_TOO_LARGE' || data?.error?.code === 'SECURITY_CONFIG_MISSING'
+            ? toFriendlySecurityMessage({
+                code: data?.error?.code,
+                message: data?.error?.message || 'Sikkerhetssjekken feilet.',
+                retryAfterSeconds: typeof (data as { retryAfterSeconds?: unknown }).retryAfterSeconds === 'number'
+                  ? (data as { retryAfterSeconds: number }).retryAfterSeconds
+                  : undefined,
+              })
             : data?.error?.message || 'Kunne ikke opprette betalingssesjon.'
 
         throw new Error(errorMessage)

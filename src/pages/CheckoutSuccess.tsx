@@ -7,6 +7,7 @@ import { useCart } from "@/contexts/CartContext";
 import { supabase } from "@/integrations/supabase/browserClient";
 import { DeliveryMethod, Order, PICKUP_LOCATIONS, ShippingAddress, isDigitalOnlyCart } from "@/types/shop";
 import { getDeliveryMethodLabel } from "@/types/shop";
+import { readSupabaseFunctionError, toFriendlySecurityMessage } from "@/lib/securityMessages";
 
 const POLL_INTERVAL_MS = 2500;
 const POLL_TIMEOUT_MS = 60_000;
@@ -30,6 +31,14 @@ interface VerifySessionResponse {
     code?: string;
     message?: string;
   };
+}
+
+async function toFriendlyInvokeError(invokeError: unknown, fallback: string) {
+  const details = await readSupabaseFunctionError(invokeError);
+  return toFriendlySecurityMessage({
+    ...details,
+    message: details.message || fallback,
+  });
 }
 
 function sleep(ms: number) {
@@ -266,7 +275,7 @@ export default function CheckoutSuccess() {
           );
 
           if (resultError) {
-            throw new Error("Kunne ikke hente checkout-resultat.");
+            throw new Error(await toFriendlyInvokeError(resultError, "Kunne ikke hente checkout-resultat."));
           }
 
           if (data?.success && data.status === "paid" && data.order) {
@@ -315,6 +324,18 @@ export default function CheckoutSuccess() {
             setError(
               "Betalingen er registrert, men ordren behandles fortsatt. Oppdater siden om et minutt eller kontakt post@bsclimbing.no."
             );
+            setLoading(false);
+          }
+          return;
+        }
+
+        if (verifyData?.success === false && verifyData.error) {
+          const message = toFriendlySecurityMessage({
+            code: verifyData.error.code,
+            message: verifyData.error.message ?? "Kunne ikke verifisere betalingen.",
+          });
+          if (isActive) {
+            setError(message);
             setLoading(false);
           }
           return;

@@ -26,51 +26,19 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
 import { serveCors } from "../_shared/cors.ts";
-
-const RATE_LIMIT_WINDOW_MS = 60_000;
-const RATE_LIMIT_MAX_REQUESTS = 30;
-const requestBuckets = new Map<string, { count: number; windowStartedAt: number }>();
+import {
+  enforceRateLimit,
+  readJsonBody,
+  secureErrorResponse,
+  secureJsonResponse,
+} from "../_shared/security.ts";
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
-function json(payload: unknown, status = 200): Response {
-  return new Response(JSON.stringify(payload), {
-    status,
-    headers: { "Content-Type": "application/json" },
-  });
-}
-
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
-}
-
-function extractClientKey(req: Request): string {
-  const forwarded = req.headers.get("x-forwarded-for");
-  if (forwarded) {
-    const firstIp = forwarded.split(",")[0]?.trim();
-    if (firstIp) return firstIp;
-  }
-  const cfIp = req.headers.get("cf-connecting-ip")?.trim();
-  if (cfIp) return cfIp;
-  return "unknown";
-}
-
-function isRateLimited(clientKey: string, nowMs: number): boolean {
-  const bucket = requestBuckets.get(clientKey);
-  if (!bucket || nowMs - bucket.windowStartedAt >= RATE_LIMIT_WINDOW_MS) {
-    requestBuckets.set(clientKey, { count: 1, windowStartedAt: nowMs });
-    return false;
-  }
-
-  if (bucket.count >= RATE_LIMIT_MAX_REQUESTS) {
-    return true;
-  }
-
-  bucket.count += 1;
-  requestBuckets.set(clientKey, bucket);
-  return false;
 }
 
 // ---------------------------------------------------------------------------
@@ -164,31 +132,40 @@ async function _generateStl(
 
 serve(serveCors(async (req) => {
   if (req.method !== "POST") {
-    return json({ error: "Method not allowed" }, 405);
-  }
-
-  const clientKey = extractClientKey(req);
-  if (isRateLimited(clientKey, Date.now())) {
-    return json({ error: "Too many requests" }, 429);
+    return secureErrorResponse("METHOD_NOT_ALLOWED", "Method not allowed.", 405);
   }
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL");
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+  const rateLimitSecret = Deno.env.get("RATE_LIMIT_SECRET");
   if (!supabaseUrl || !serviceKey) {
-    return json({ error: "Server configuration incomplete." }, 500);
+    return secureErrorResponse("CONFIG_MISSING", "Server configuration incomplete.", 500);
   }
 
   try {
-    const body = await req.json();
+    const sb = createClient(supabaseUrl, serviceKey, {
+      auth: { persistSession: false },
+    });
+
+    const rateLimitResponse = await enforceRateLimit({
+      req,
+      supabaseAdmin: sb,
+      rateLimitSecret,
+      route: "preview-model",
+      limit: 30,
+      windowSeconds: 60,
+      auditEventType: "preview.rate_limited",
+    });
+    if (rateLimitResponse) return rateLimitResponse;
+
+    const parsedBody = await readJsonBody<Record<string, unknown>>(req, 4 * 1024);
+    if ("response" in parsedBody) return parsedBody.response;
+
+    const body = parsedBody.data;
     const rawParams: RawParams = isRecord(body) && isRecord(body.params) ? body.params as RawParams : {};
     const normalized = normalize(rawParams);
     const hash = await sha256(JSON.stringify(normalized));
     const storagePath = `previews/${hash}.stl`;
-
-    // Supabase client with service role (can read/write storage)
-    const sb = createClient(supabaseUrl, serviceKey, {
-      auth: { persistSession: false },
-    });
 
     // 1. Check if file already exists in storage
     const { data: existing } = await sb.storage
@@ -196,7 +173,7 @@ serve(serveCors(async (req) => {
       .createSignedUrl(storagePath, 3600); // 1 hour URL
 
     if (existing?.signedUrl) {
-      return json({ hash, urlStl: existing.signedUrl });
+      return secureJsonResponse({ hash, urlStl: existing.signedUrl });
     }
 
     // 2. Try to generate
@@ -213,7 +190,7 @@ serve(serveCors(async (req) => {
 
       if (uploadErr) {
         console.error("[preview-model] upload error:", uploadErr);
-        return json({ error: "Upload failed." }, 500);
+        return secureErrorResponse("UPLOAD_FAILED", "Upload failed.", 500);
       }
 
       const { data: url } = await sb.storage
@@ -221,7 +198,7 @@ serve(serveCors(async (req) => {
         .createSignedUrl(storagePath, 3600);
 
       if (url?.signedUrl) {
-        return json({ hash, urlStl: url.signedUrl });
+        return secureJsonResponse({ hash, urlStl: url.signedUrl });
       }
     }
 
@@ -231,9 +208,9 @@ serve(serveCors(async (req) => {
         ? "/models/blokk_longedge.stl"
         : "/models/blokk_shortedge.stl";
 
-    return json({ hash, urlStl: fallbackUrl, fallback: true });
+    return secureJsonResponse({ hash, urlStl: fallbackUrl, fallback: true });
   } catch (err: unknown) {
     console.error("[preview-model] unexpected error:", err);
-    return json({ error: "Internal error." }, 500);
+    return secureErrorResponse("INTERNAL_ERROR", "Internal error.", 500);
   }
-}, ["x-preview-token"]));
+}));

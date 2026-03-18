@@ -4,6 +4,7 @@ import { createContext, useContext, useState, useEffect, ReactNode, useCallback,
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { CartItem, Product, DeliveryMethod, isDigitalOnlyCart } from '@/types/shop'
 import { DEFAULT_SHIPPING_COST } from '@/lib/siteDefaults'
+import { readSupabaseFunctionError, toFriendlySecurityMessage } from '@/lib/securityMessages'
 
 interface CartContextType {
   items: CartItem[]
@@ -24,7 +25,7 @@ interface CartContextType {
   promoCode: string | null
   promoDiscount: number
   discountedTotal: number
-  applyPromoCode: (code: string) => Promise<boolean>
+  applyPromoCode: (code: string) => Promise<{ ok: boolean; message?: string }>
   clearPromoCode: () => void
 }
 
@@ -97,29 +98,47 @@ export function CartProvider({ children }: { children: ReactNode }) {
   const discountedTotal = Math.max(0, total - promoDiscount)
 
   const applyPromoCode = useCallback(
-    async (code: string): Promise<boolean> => {
+    async (code: string): Promise<{ ok: boolean; message?: string }> => {
       const normalizedCode = code.toUpperCase().trim()
-      if (!normalizedCode) return false
+      if (!normalizedCode) return { ok: false, message: 'Skriv inn en promokode.' }
 
       const sb = await loadSupabaseClient()
-      if (!sb) return false
+      if (!sb) {
+        return { ok: false, message: 'Promokoder er midlertidig utilgjengelige.' }
+      }
 
       try {
         const { data, error } = await sb.functions.invoke('validate-promo', {
           body: { promoCode: normalizedCode, totalNok: total }
         })
 
-        if (error || !data?.success) return false
+        if (error) {
+          const details = await readSupabaseFunctionError(error)
+          return {
+            ok: false,
+            message: toFriendlySecurityMessage({
+              ...details,
+              message: details.message || 'Kunne ikke validere promokoden.',
+            }),
+          }
+        }
+
+        if (!data?.success) {
+          return {
+            ok: false,
+            message: data?.error?.message || 'Kunne ikke validere promokoden.',
+          }
+        }
 
         if (data.valid === true && typeof data.discountNok === 'number' && data.discountNok > 0) {
           setPromoCode(typeof data.normalizedCode === 'string' ? data.normalizedCode : normalizedCode)
           setPromoDiscount(Math.round(data.discountNok))
-          return true
+          return { ok: true }
         }
 
-        return false
+        return { ok: false, message: data?.message || 'Ugyldig promokode.' }
       } catch {
-        return false
+        return { ok: false, message: 'Kunne ikke sjekke promokoden akkurat na.' }
       }
     },
     [total]

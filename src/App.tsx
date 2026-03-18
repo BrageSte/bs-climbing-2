@@ -19,6 +19,8 @@ const Privacy = lazy(() => import("./pages/Privacy"));
 const Contact = lazy(() => import("./pages/Contact"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 const AdminLogin = lazy(() => import("./pages/admin/AdminLogin"));
+const AdminMfaSetup = lazy(() => import("./pages/admin/AdminMfaSetup"));
+const AdminMfaVerify = lazy(() => import("./pages/admin/AdminMfaVerify"));
 const AdminDashboard = lazy(() => import("./pages/admin/AdminDashboard"));
 const OrderList = lazy(() => import("./pages/admin/OrderList"));
 const OrderDetails = lazy(() => import("./pages/admin/OrderDetails"));
@@ -140,6 +142,8 @@ const App = () => (
 
             {/* Admin routes */}
             <Route path="/admin/login" element={<AdminLogin />} />
+            <Route path="/admin/mfa/setup" element={<AdminMfaSetup />} />
+            <Route path="/admin/mfa/verify" element={<AdminMfaVerify />} />
             <Route path="/admin" element={<ProtectedRoute><AdminDashboard /></ProtectedRoute>} />
             <Route path="/admin/orders" element={<ProtectedRoute><OrderList /></ProtectedRoute>} />
             <Route path="/admin/orders/:orderId" element={<ProtectedRoute><OrderDetails /></ProtectedRoute>} />

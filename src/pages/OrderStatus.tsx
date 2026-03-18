@@ -11,6 +11,7 @@ import OrderStatusBadge from '@/components/admin/OrderStatusBadge'
 import { DELIVERY_METHOD_LABELS, ORDER_STATUS_LABELS } from '@/types/admin'
 import type { OrderStatus } from '@/types/admin'
 import { supabase } from '@/integrations/supabase/browserClient'
+import { readSupabaseFunctionError, toFriendlySecurityMessage } from '@/lib/securityMessages'
 
 interface OrderStatusResponse {
   success?: boolean
@@ -28,7 +29,7 @@ interface OrderStatusResponse {
     total?: number
     basis?: 'printing' | 'ready_to_print' | 'in_production'
   } | null
-  error?: string
+  error?: string | { code?: string; message?: string }
   code?: string
 }
 
@@ -72,6 +73,21 @@ function normalizeErrorMessage(raw?: string) {
   if (value.includes('configuration missing')) return 'Tjenesten mangler oppsett. Prøv igjen senere'
   if (value.includes('database error')) return 'Det oppstod en databasefeil. Prøv igjen senere'
   return raw
+}
+
+function getInlineErrorMessage(error: OrderStatusResponse['error'], code?: string) {
+  if (typeof error === 'string') {
+    return normalizeErrorMessage(error)
+  }
+
+  if (error && typeof error === 'object') {
+    return toFriendlySecurityMessage({
+      code: error.code ?? code,
+      message: error.message ?? 'Kunne ikke hente ordrestatus',
+    })
+  }
+
+  return 'Kunne ikke hente ordrestatus'
 }
 
 export default function OrderStatusPage() {
@@ -129,30 +145,20 @@ export default function OrderStatusPage() {
       })
 
       if (invokeError) {
-        let serverMessage = ''
-        let serverCode = ''
-        const context = (invokeError as { context?: Response }).context
-        if (context) {
-          try {
-            const bodyText = await context.text()
-            if (bodyText) {
-              const parsed = JSON.parse(bodyText) as { error?: string; code?: string }
-              serverMessage = parsed.error ?? ''
-              serverCode = parsed.code ?? ''
-            }
-          } catch {
-            // Ignore parse failures
-          }
-        }
-
-        const normalizedMessage = normalizeErrorMessage(serverMessage || invokeError.message)
-        const codeLabel = serverCode ? ` Feilkode: ${serverCode}.` : ' Feilkode: OS_EDGE_HTTP_ERROR.'
+        const details = await readSupabaseFunctionError(invokeError)
+        const normalizedMessage = normalizeErrorMessage(
+          toFriendlySecurityMessage({
+            ...details,
+            message: details.message || 'Kunne ikke hente ordrestatus',
+          })
+        )
+        const codeLabel = details.code ? ` Feilkode: ${details.code}.` : ' Feilkode: OS_EDGE_HTTP_ERROR.'
         setError(`${normalizedMessage}.${codeLabel}`)
         return
       }
 
       if (!data?.order) {
-        const normalizedMessage = normalizeErrorMessage(data?.error)
+        const normalizedMessage = getInlineErrorMessage(data?.error, data?.code)
         const codeLabel = data?.code ? ` Feilkode: ${data.code}.` : ' Feilkode: OS_NOT_FOUND.'
         setError(`${normalizedMessage}.${codeLabel}`)
         return

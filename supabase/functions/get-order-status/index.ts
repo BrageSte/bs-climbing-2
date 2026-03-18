@@ -2,6 +2,12 @@ import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
 import { serveCors } from "../_shared/cors.ts";
 import { timingSafeEqual } from "../_shared/timing.ts";
+import {
+  enforceRateLimit,
+  readJsonBody,
+  secureErrorResponse,
+  secureJsonResponse,
+} from "../_shared/security.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
@@ -25,13 +31,6 @@ const ERROR_CODES = {
 
 interface OrderStatusRequest {
   orderId?: string;
-}
-
-function jsonResponse(payload: unknown, status = 200): Response {
-  return new Response(JSON.stringify(payload), {
-    status,
-    headers: { "Content-Type": "application/json" },
-  });
 }
 
 function extractOrderStatusToken(req: Request): string | null {
@@ -59,29 +58,43 @@ async function computeOrderStatusToken(secret: string, orderId: string): Promise
 
 serve(serveCors(async (req) => {
   try {
-    if (!supabaseAdmin || !ORDER_STATUS_SECRET) {
-      return jsonResponse(
-        {
-          success: false,
-          error: "Configuration missing",
-          code: ERROR_CODES.configMissing,
-        },
-        500
-      );
+    if (req.method !== "POST") {
+      return secureErrorResponse("METHOD_NOT_ALLOWED", "Method not allowed.", 405);
     }
 
-    const body: OrderStatusRequest = await req.json();
+    const rateLimitSecret = Deno.env.get("RATE_LIMIT_SECRET");
+    if (!supabaseAdmin || !ORDER_STATUS_SECRET) {
+      return secureErrorResponse(ERROR_CODES.configMissing, "Configuration missing", 500);
+    }
+
+    const rateLimitResponse = await enforceRateLimit({
+      req,
+      supabaseAdmin,
+      rateLimitSecret,
+      route: "get-order-status",
+      limit: 20,
+      windowSeconds: 600,
+      auditEventType: "status.rate_limited",
+    });
+    if (rateLimitResponse) {
+      return rateLimitResponse;
+    }
+
+    const parsedBody = await readJsonBody<OrderStatusRequest>(req, 2 * 1024);
+    if ("response" in parsedBody) return parsedBody.response;
+
+    const body = parsedBody.data;
     const orderId = body.orderId?.trim();
     if (!orderId) {
-      return jsonResponse(
+      return secureJsonResponse(
         { success: false, error: "orderId is required", code: ERROR_CODES.missingOrderId },
-        400
+        400,
       );
     }
 
     const token = extractOrderStatusToken(req);
     if (!token) {
-      return jsonResponse(
+      return secureJsonResponse(
         { success: false, error: "Missing order status token", code: ERROR_CODES.missingAuth },
         401
       );
@@ -89,7 +102,7 @@ serve(serveCors(async (req) => {
 
     const expected = await computeOrderStatusToken(ORDER_STATUS_SECRET, orderId);
     if (!timingSafeEqual(token, expected)) {
-      return jsonResponse(
+      return secureJsonResponse(
         { success: false, error: "Unauthorized", code: ERROR_CODES.unauthorized },
         403
       );
@@ -104,7 +117,7 @@ serve(serveCors(async (req) => {
     if (error) {
       console.error("[get-order-status] DB error", { code: error.code, message: error.message });
       const status = error.code === "PGRST116" ? 404 : 500;
-      return jsonResponse(
+      return secureJsonResponse(
         {
           success: false,
           error: status === 404 ? "Order not found" : "Database error",
@@ -115,7 +128,7 @@ serve(serveCors(async (req) => {
     }
 
     if (!order) {
-      return jsonResponse({ success: false, error: "Order not found", code: ERROR_CODES.notFound }, 404);
+      return secureJsonResponse({ success: false, error: "Order not found", code: ERROR_CODES.notFound }, 404);
     }
 
     let queueInfo: {
@@ -147,7 +160,7 @@ serve(serveCors(async (req) => {
       };
     }
 
-    return jsonResponse({
+    return secureJsonResponse({
       success: true,
       order: {
         id: order.id,
@@ -161,7 +174,7 @@ serve(serveCors(async (req) => {
     });
   } catch (error: unknown) {
     console.error("[get-order-status] Unexpected error", error);
-    return jsonResponse(
+    return secureJsonResponse(
       { success: false, error: "Internal error", code: ERROR_CODES.internalError },
       500
     );

@@ -61,6 +61,7 @@ Sjekk at:
 
 - `src/integrations/supabase/publicEnv.ts` kun inneholder browser-safe URL + publishable/anon key
 - `scripts/supabase/set-secrets.sh` fortsatt krever `STRIPE_SECRET_KEY`, `RESEND_API_KEY`, `PUBLIC_SITE_URL` og `ORDER_STATUS_SECRET`
+- `scripts/supabase/set-secrets.sh` fortsatt krever `RATE_LIMIT_SECRET` i tillegg til de øvrige Edge Function-hemmelighetene
 - service-role og andre private verdier kun ligger i Supabase secrets, ikke i klientkode
 - `preview-model` behandles som en offentlig browser-endpoint hvis den er aktivert, og ikke er avhengig av `VITE_*`-hemmeligheter for tilgangskontroll
 
@@ -70,8 +71,10 @@ Ved endringer i backend skal disse punktene verifiseres manuelt:
 
 - public klient skal ikke kunne opprette ordre direkte med egne priser
 - `create-checkout` skal fortsatt beregne priser server-side og feile lukket hvis `PUBLIC_SITE_URL` mangler eller er ugyldig
+- offentlige edge functions skal bruke delt request-storrelse-guard og DB-backed rate limiting
 - migrasjoner som paavirker `orders`, `checkout_sessions`, `site_settings` eller RLS skal leses og vurderes eksplisitt
 - HMAC/token-beskyttede flyter for ordrestatus og checkout-resultat skal ikke svekkes
+- admin-tilgang til `orders`, `order_events`, `checkout_sessions`, `site_settings` og `files` skal kreve `aal2`
 
 ## Kjente forhold per 17.03.2026
 

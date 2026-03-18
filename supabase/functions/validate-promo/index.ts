@@ -1,15 +1,14 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
 import { serveCors } from "../_shared/cors.ts";
+import {
+  enforceRateLimit,
+  readJsonBody,
+  secureErrorResponse,
+  secureJsonResponse,
+} from "../_shared/security.ts";
 
 type PromoCodeRule = { type: "percent" | "fixed"; value: number };
-
-function jsonResponse(payload: unknown, status = 200): Response {
-  return new Response(JSON.stringify(payload), {
-    status,
-    headers: { "Content-Type": "application/json" },
-  });
-}
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
@@ -66,35 +65,51 @@ interface ValidatePromoInput {
 }
 
 serve(serveCors(async (req) => {
-  const supabaseUrl = Deno.env.get("SUPABASE_URL");
-  const supabaseServiceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-  if (!supabaseUrl || !supabaseServiceRoleKey) {
-    return jsonResponse(
-      { success: false, error: { code: "CONFIG_MISSING", message: "Server configuration is incomplete." } },
-      500
-    );
+  if (req.method !== "POST") {
+    return secureErrorResponse("METHOD_NOT_ALLOWED", "Method not allowed.", 405);
   }
 
+  const supabaseUrl = Deno.env.get("SUPABASE_URL");
+  const supabaseServiceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+  const rateLimitSecret = Deno.env.get("RATE_LIMIT_SECRET");
+  if (!supabaseUrl || !supabaseServiceRoleKey) {
+    return secureErrorResponse("CONFIG_MISSING", "Server configuration is incomplete.", 500);
+  }
+
+  const supabaseAdmin = createClient(supabaseUrl, supabaseServiceRoleKey, {
+    auth: { persistSession: false },
+  });
+
+  const rateLimitResponse = await enforceRateLimit({
+    req,
+    supabaseAdmin,
+    rateLimitSecret,
+    route: "validate-promo",
+    limit: 20,
+    windowSeconds: 600,
+    auditEventType: "promo.rate_limited",
+  });
+  if (rateLimitResponse) return rateLimitResponse;
+
   try {
-    const body: ValidatePromoInput = await req.json();
+    const parsedBody = await readJsonBody<ValidatePromoInput>(req, 2 * 1024);
+    if ("response" in parsedBody) return parsedBody.response;
+
+    const body = parsedBody.data;
     const rawCode = typeof body.promoCode === "string" ? body.promoCode : "";
     const promoCode = rawCode.trim().toUpperCase();
     const totalNok = asFiniteNumber(body.totalNok) ?? 0;
 
     if (!promoCode) {
-      return jsonResponse({ success: true, valid: false, discountNok: 0, message: "Mangler promokode." }, 200);
+      return secureJsonResponse({ success: true, valid: false, discountNok: 0, message: "Mangler promokode." }, 200);
     }
 
     if (!Number.isFinite(totalNok) || totalNok <= 0) {
-      return jsonResponse(
+      return secureJsonResponse(
         { success: true, valid: false, discountNok: 0, message: "Ugyldig totalbeløp." },
         200
       );
     }
-
-    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceRoleKey, {
-      auth: { persistSession: false },
-    });
 
     const { data, error } = await supabaseAdmin
       .from("site_settings")
@@ -104,29 +119,25 @@ serve(serveCors(async (req) => {
 
     if (error) {
       console.error("[validate-promo] DB error loading promo_codes", { code: error.code, message: error.message });
-      return jsonResponse(
-        { success: false, error: { code: "DB_ERROR", message: "Database error." } },
-        500
-      );
+      return secureErrorResponse("DB_ERROR", "Database error.", 500);
     }
 
     const promoCodes = sanitizePromoCodes(data?.value);
     const rule = promoCodes[promoCode];
     if (!rule) {
-      return jsonResponse(
+      return secureJsonResponse(
         { success: true, valid: false, discountNok: 0, message: "Ugyldig promokode." },
         200
       );
     }
 
     const discountNok = computeDiscountNok(rule, totalNok);
-    return jsonResponse(
+    return secureJsonResponse(
       { success: true, valid: discountNok > 0, normalizedCode: promoCode, discountNok },
       200
     );
   } catch (error: unknown) {
     console.error("[validate-promo] Unexpected error", error);
-    return jsonResponse({ success: false, error: { code: "INTERNAL_ERROR", message: "Internal error." } }, 500);
+    return secureErrorResponse("INTERNAL_ERROR", "Internal error.", 500);
   }
 }));
-

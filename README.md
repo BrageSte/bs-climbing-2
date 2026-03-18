@@ -47,6 +47,7 @@ Mulige overstyringer via miljo:
 - `VITE_SUPABASE_KEY`
 
 Private nokler og service-role-verdier skal aldri inn i klientkode og skal kun ligge i Supabase secrets.
+Dette inkluderer `ORDER_STATUS_SECRET`, `RATE_LIMIT_SECRET`, Stripe-hemmeligheter og andre Edge Function-secrets.
 
 ## Ordrestatus-feilkoder
 

@@ -14,6 +14,42 @@ export type Database = {
   }
   public: {
     Tables: {
+      audit_events: {
+        Row: {
+          actor_aal: string | null
+          actor_user_id: string | null
+          created_at: string
+          event_type: string
+          id: string
+          order_id: string | null
+          payload: Json
+          route: string | null
+          subject_hash: string | null
+        }
+        Insert: {
+          actor_aal?: string | null
+          actor_user_id?: string | null
+          created_at?: string
+          event_type: string
+          id?: string
+          order_id?: string | null
+          payload?: Json
+          route?: string | null
+          subject_hash?: string | null
+        }
+        Update: {
+          actor_aal?: string | null
+          actor_user_id?: string | null
+          created_at?: string
+          event_type?: string
+          id?: string
+          order_id?: string | null
+          payload?: Json
+          route?: string | null
+          subject_hash?: string | null
+        }
+        Relationships: []
+      }
       checkout_sessions: {
         Row: {
           config_snapshot: Json
@@ -99,6 +135,33 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      edge_rate_limits: {
+        Row: {
+          created_at: string
+          fingerprint: string
+          request_count: number
+          route: string
+          updated_at: string
+          window_started_at: string
+        }
+        Insert: {
+          created_at?: string
+          fingerprint: string
+          request_count?: number
+          route: string
+          updated_at?: string
+          window_started_at: string
+        }
+        Update: {
+          created_at?: string
+          fingerprint?: string
+          request_count?: number
+          route?: string
+          updated_at?: string
+          window_started_at?: string
+        }
+        Relationships: []
       }
       files: {
         Row: {
@@ -299,6 +362,19 @@ export type Database = {
           production_number: number
         }[]
       }
+      consume_edge_rate_limit: {
+        Args: {
+          p_fingerprint: string
+          p_limit: number
+          p_route: string
+          p_window_seconds: number
+        }
+        Returns: {
+          allowed: boolean
+          remaining: number
+          retry_after_seconds: number
+        }[]
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
@@ -306,7 +382,19 @@ export type Database = {
         }
         Returns: boolean
       }
+      is_aal2: { Args: never; Returns: boolean }
       is_admin: { Args: never; Returns: boolean }
+      is_admin_aal2: { Args: never; Returns: boolean }
+      write_audit_event: {
+        Args: {
+          p_event_type: string
+          p_order_id?: string | null
+          p_payload?: Json
+          p_route?: string | null
+          p_subject_hash?: string | null
+        }
+        Returns: undefined
+      }
     }
     Enums: {
       app_role: "admin" | "user"

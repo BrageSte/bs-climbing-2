@@ -2,6 +2,11 @@ import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import Stripe from "https://esm.sh/stripe@18.5.0";
 import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
 import { serveCors } from "../_shared/cors.ts";
+import {
+  enforceRateLimit,
+  readJsonBody,
+  secureJsonResponse,
+} from "../_shared/security.ts";
 
 const STRIPE_API_VERSION: Stripe.LatestApiVersion = "2025-08-27.basil";
 const ORDER_STATUS_SECRET = Deno.env.get("ORDER_STATUS_SECRET");
@@ -120,10 +125,7 @@ type PromoCodeRule = { type: "percent" | "fixed"; value: number };
 type ProductPriceByVariant = { shortedge: number; longedge: number };
 
 function jsonResponse(payload: unknown, status = 200): Response {
-  return new Response(JSON.stringify(payload), {
-    headers: { "Content-Type": "application/json" },
-    status,
-  });
+  return secureJsonResponse(payload, status);
 }
 
 function errorResponse(code: ErrorCode, message: string, status = 400): Response {
@@ -491,9 +493,14 @@ async function sendOrderConfirmationEmail(
 }
 
 serve(serveCors(async (req) => {
+  if (req.method !== "POST") {
+    return errorResponse("INVALID_REQUEST", "Method not allowed.", 405);
+  }
+
   const stripeSecretKey = Deno.env.get("STRIPE_SECRET_KEY");
   const supabaseUrl = Deno.env.get("SUPABASE_URL");
   const supabaseServiceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+  const rateLimitSecret = Deno.env.get("RATE_LIMIT_SECRET");
 
   if (!supabaseUrl || !supabaseServiceRoleKey) {
     return errorResponse("CONFIG_MISSING", "Server configuration is incomplete.", 500);
@@ -505,10 +512,24 @@ serve(serveCors(async (req) => {
   });
 
   try {
+    const rateLimitResponse = await enforceRateLimit({
+      req,
+      supabaseAdmin,
+      rateLimitSecret,
+      route: "create-checkout",
+      limit: 6,
+      windowSeconds: 600,
+      auditEventType: "checkout.rate_limited",
+    });
+    if (rateLimitResponse) return rateLimitResponse;
+
     const siteOrigin = getConfiguredSiteOrigin();
     if (!siteOrigin.ok) return siteOrigin.response;
 
-    const payload = await req.json();
+    const parsedPayload = await readJsonBody<unknown>(req, 24 * 1024);
+    if ("response" in parsedPayload) return parsedPayload.response;
+
+    const payload = parsedPayload.data;
     const validation = validateRequest(payload, siteOrigin.origin);
     if (!validation.ok) return validation.response;
 
